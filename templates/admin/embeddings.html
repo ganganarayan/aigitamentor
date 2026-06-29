@@ -1,0 +1,35 @@
+{% extends "admin/base.html" %}
+{% block title %}Embeddings · Knowledge Studio{% endblock %}
+
+{% block styles %}
+  .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
+  .total { font-size:14px; opacity:.75; }
+{% endblock %}
+
+{% block body %}
+<h1>Embeddings &amp; ingestion</h1>
+<div class="row">
+  <form method="post" action="/admin/embeddings/ingest-all"><button class="btn" type="submit">Ingest all published</button></form>
+  <span class="total">{{ total_chunks }} chunk(s) in the corpus</span>
+</div>
+<p style="font-size:13px;opacity:.7;margin-top:-6px">Ingestion is idempotent — re-running an answer replaces its chunks. Each chunk carries full attribution and a <code>min_tier</code> gate from the answer's tier. Requires <code>OPENAI_API_KEY</code>.</p>
+
+{% if rows %}
+<table>
+  <thead><tr><th>Answer #</th><th>Question</th><th>Tier</th><th>Chunks</th><th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>{{ r.answer.id }}</td>
+      <td>{{ r.question.question_text if r.question else '—' }}</td>
+      <td><span class="pill">{{ r.answer.tier }}</span></td>
+      <td>{{ r.chunks }}</td>
+      <td><form method="post" action="/admin/answers/{{ r.answer.id }}/ingest"><button class="btn secondary" type="submit">{{ 'Re-ingest' if r.chunks else 'Ingest' }}</button></form></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="card"><p>No published answers yet. Publish a recording's transcript from the <a href="/admin/recorder">Recorder</a> first.</p></div>
+{% endif %}
+{% endblock %}

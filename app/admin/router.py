@@ -20,6 +20,7 @@ from app.auth.deps import require_admin
 from app.db import get_db
 from app.models import (
     KbAnswer,
+    KbChunk,
     KbSource,
     LlmBaseline,
     Question,
@@ -28,6 +29,7 @@ from app.models import (
     Verse,
 )
 from app.models.corpus import TIER_RANK
+from app.services import ingestion
 from app.services import llm_baselines
 from app.services import recordings as rec_service
 from app.services.seed import seed_starter
@@ -209,3 +211,37 @@ def publish_recording(
 def run_seed(user: User = Depends(require_admin), db: Session = Depends(get_db)):
     seed_starter(db)
     return RedirectResponse("/admin/recorder", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# --- Embeddings / ingestion (Phase 3) --------------------------------------
+
+@router.get("/embeddings", response_class=HTMLResponse)
+def embeddings_page(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    answers = list(
+        db.execute(select(KbAnswer).where(KbAnswer.status == "published").order_by(KbAnswer.id.desc())).scalars()
+    )
+    rows = [
+        {
+            "answer": a,
+            "question": db.get(Question, a.question_id) if a.question_id else None,
+            "chunks": ingestion.chunk_count_for(db, a.id),
+        }
+        for a in answers
+    ]
+    total_chunks = db.execute(select(func.count()).select_from(KbChunk)).scalar_one()
+    return templates.TemplateResponse(
+        "admin/embeddings.html",
+        {"request": request, "user": user, "rows": rows, "total_chunks": total_chunks},
+    )
+
+
+@router.post("/embeddings/ingest-all")
+def ingest_all(background: BackgroundTasks, user: User = Depends(require_admin)):
+    background.add_task(ingestion.ingest_all_in_background)
+    return RedirectResponse("/admin/embeddings", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/answers/{answer_id}/ingest")
+def ingest_one(answer_id: int, background: BackgroundTasks, user: User = Depends(require_admin)):
+    background.add_task(ingestion.ingest_answer_by_id, answer_id)
+    return RedirectResponse("/admin/embeddings", status_code=status.HTTP_303_SEE_OTHER)
