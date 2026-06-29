@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Create account · AI Gita Mentor{% endblock %}
+
+{% block styles %}
+  .authwrap { max-width: 420px; margin: 0 auto; padding: 56px 24px 80px; }
+  .card { background: #fff; border: 1px solid rgba(201,150,59,.25); border-radius: 18px; padding: 32px; }
+  h1.display { font-family: "Cormorant Garamond", serif; font-size: 34px; margin: 0 0 4px; color: var(--dark); }
+  .sub { color: var(--ink); opacity: .75; margin: 0 0 22px; font-size: 15px; }
+  label { display: block; font-size: 13px; margin: 14px 0 6px; color: var(--ink); }
+  input { width: 100%; padding: 12px 14px; border: 1px solid rgba(58,40,16,.2); border-radius: 10px; font: inherit; }
+  .btn { width: 100%; margin-top: 22px; padding: 13px; background: var(--saffron); color: #fff; border: 0; border-radius: 999px; font-family: "Cinzel", serif; letter-spacing: .05em; cursor: pointer; }
+  .btn:hover { background: #d2740f; }
+  .err { background: #fdecea; color: #8a1c12; border-radius: 10px; padding: 10px 12px; font-size: 14px; margin-bottom: 8px; }
+  .hint { font-size: 12px; color: rgba(58,40,16,.55); margin-top: 6px; }
+  .alt { text-align: center; margin-top: 18px; font-size: 14px; }
+  .divider { text-align: center; margin: 22px 0 6px; color: rgba(58,40,16,.45); font-size: 12px; letter-spacing: .1em; }
+  .google { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; padding:12px; border:1px solid rgba(58,40,16,.2); border-radius:999px; background:#fff; color:var(--ink); text-decoration:none; font-size:14px; }
+  .google:hover { background: var(--cream); }
+{% endblock %}
+
+{% block body %}
+<div class="authwrap">
+  <div class="card">
+    <h1 class="display">Begin</h1>
+    <p class="sub">A glimpse of the work — free.</p>
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+    {% if google_enabled %}
+      <a class="google" href="/auth/google/login?next={{ next|urlencode }}">Continue with Google</a>
+      <div class="divider">OR</div>
+    {% endif %}
+    <form method="post" action="/signup">
+      <input type="hidden" name="next" value="{{ next }}" />
+      <label for="name">Name <span style="opacity:.5">(optional)</span></label>
+      <input id="name" name="name" type="text" autocomplete="name" />
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" required autocomplete="email" />
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" required minlength="8" autocomplete="new-password" />
+      <div class="hint">At least 8 characters. You must be 18 or older.</div>
+      <button class="btn" type="submit">Create account</button>
+    </form>
+    <p class="alt">Already have an account? <a href="/login?next={{ next|urlencode }}">Sign in</a></p>
+  </div>
+</div>
+{% endblock %}

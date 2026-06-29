@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     environment: str = Field(default="development", alias="ENVIRONMENT")
     debug: bool = Field(default=False, alias="DEBUG")
 
+    # Comma-separated emails auto-granted the admin role on signup/login.
+    admin_emails: str = Field(default="", alias="ADMIN_EMAILS")
+
+    # Where in-browser recordings land temporarily before Drive copy (Section 6).
+    recordings_tmp_dir: str = Field(default="recordings_tmp", alias="RECORDINGS_TMP_DIR")
+
     # --- Database ---
     database_url: str | None = Field(default=None, alias="DATABASE_URL")
 
@@ -67,6 +73,14 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment.lower() in {"production", "prod"}
+
+    @property
+    def admin_email_set(self) -> set[str]:
+        return {e.strip().lower() for e in self.admin_emails.split(",") if e.strip()}
+
+    @property
+    def google_oauth_enabled(self) -> bool:
+        return bool(self.google_oauth_client_id and self.google_oauth_client_secret)
 
 
 @lru_cache

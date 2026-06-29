@@ -1,0 +1,31 @@
+{% extends "admin/base.html" %}
+{% block title %}Dashboard · Knowledge Studio{% endblock %}
+
+{% block styles %}
+  .grid { display:grid; gap:16px; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); margin-bottom:22px; }
+  .stat { background:#fff; border:1px solid rgba(201,150,59,.25); border-radius:12px; padding:18px; }
+  .stat .n { font-size:30px; font-weight:700; color:var(--dark); }
+  .stat .l { font-size:13px; opacity:.7; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; }
+{% endblock %}
+
+{% block body %}
+<h1>Dashboard</h1>
+<div class="grid">
+  <div class="stat"><div class="n">{{ stats.questions }}</div><div class="l">Questions</div></div>
+  <div class="stat"><div class="n">{{ stats.verses }}</div><div class="l">Verses</div></div>
+  <div class="stat"><div class="n">{{ stats.recordings }}</div><div class="l">Recordings</div></div>
+  <div class="stat"><div class="n">{{ stats.answers }}</div><div class="l">Answers</div></div>
+  <div class="stat"><div class="n">{{ stats.users }}</div><div class="l">Users</div></div>
+</div>
+
+<div class="card">
+  <p style="margin-top:0">Welcome to the engine room. Record GND's answers against the 160 questions, see the LLM commodity floor side-by-side, and publish into the gated corpus.</p>
+  <div class="row">
+    <a class="btn" href="/admin/recorder">Open Recorder</a>
+    {% if stats.questions == 0 %}
+    <form method="post" action="/admin/seed"><button class="btn secondary" type="submit">Seed starter questions</button></form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

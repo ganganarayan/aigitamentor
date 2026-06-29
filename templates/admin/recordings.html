@@ -1,0 +1,32 @@
+{% extends "admin/base.html" %}
+{% block title %}Recordings · Knowledge Studio{% endblock %}
+
+{% block body %}
+<h1>Recordings</h1>
+{% if rows %}
+<table>
+  <thead><tr><th>#</th><th>Q</th><th>Status</th><th>Transcript</th><th>Drive</th><th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>{{ r.id }}</td>
+      <td>{{ r.question_id or '—' }}</td>
+      <td>
+        <span class="pill {{ 'ok' if r.status in ['temp_deleted','transcribed','uploaded_drive'] else ('err' if r.status=='failed' else 'warn') }}">{{ r.status }}</span>
+        {% if r.error_text %}<div style="font-size:11px;opacity:.6">{{ r.error_text }}</div>{% endif %}
+      </td>
+      <td><div style="max-height:90px;overflow:auto;font-size:13px">{{ r.transcript_text or '—' }}</div></td>
+      <td>{% if r.gdrive_url %}<a href="{{ r.gdrive_url }}" target="_blank" rel="noopener">open</a>{% else %}—{% endif %}</td>
+      <td>
+        {% if r.status == 'failed' %}
+        <form method="post" action="/admin/recordings/{{ r.id }}/retry"><button class="btn secondary" type="submit">Retry</button></form>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="card"><p>No recordings yet. Head to the <a href="/admin/recorder">Recorder</a>.</p></div>
+{% endif %}
+{% endblock %}

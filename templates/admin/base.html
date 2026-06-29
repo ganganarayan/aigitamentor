@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>{% block title %}Knowledge Studio · AI Gita Mentor{% endblock %}</title>
+  <style>
+    :root { --saffron:#E8821A; --gold:#C9963B; --cream:#FAF3E8; --parchment:#F2E6CC; --dark:#2E1F0F; --ink:#3A2810; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, sans-serif; color: var(--ink); background:#FBF7EF; }
+    header.top { display:flex; align-items:center; gap:18px; padding:12px 22px; background:var(--dark); color:var(--cream); }
+    header.top .brand { font-weight:700; letter-spacing:.04em; }
+    header.top nav { display:flex; gap:16px; flex-wrap:wrap; }
+    header.top nav a { color:#F0C96A; text-decoration:none; font-size:14px; }
+    header.top nav a:hover { color:#fff; }
+    header.top .spacer { flex:1; }
+    header.top .who { font-size:13px; opacity:.85; }
+    main { max-width: 1040px; margin: 0 auto; padding: 28px 22px 64px; }
+    h1 { font-size: 24px; margin: 0 0 18px; color: var(--dark); }
+    .btn { display:inline-block; padding:9px 18px; background:var(--saffron); color:#fff; border:0; border-radius:8px; font:inherit; cursor:pointer; text-decoration:none; }
+    .btn.secondary { background:#fff; color:var(--ink); border:1px solid rgba(58,40,16,.2); }
+    .btn:hover { filter: brightness(.96); }
+    .card { background:#fff; border:1px solid rgba(201,150,59,.25); border-radius:12px; padding:18px; }
+    table { width:100%; border-collapse: collapse; background:#fff; border-radius:12px; overflow:hidden; }
+    th, td { text-align:left; padding:10px 12px; border-bottom:1px solid rgba(58,40,16,.08); font-size:14px; vertical-align:top; }
+    th { background:var(--parchment); }
+    .pill { display:inline-block; padding:2px 9px; border-radius:999px; font-size:12px; background:#eee; }
+    .pill.ok { background:#e3f5e6; color:#1c6b2e; }
+    .pill.warn { background:#fdf2e0; color:#9a5b09; }
+    .pill.err { background:#fdecea; color:#8a1c12; }
+    label { display:block; font-size:13px; margin:10px 0 5px; }
+    input, select, textarea { width:100%; padding:9px 11px; border:1px solid rgba(58,40,16,.2); border-radius:8px; font:inherit; }
+    {% block styles %}{% endblock %}
+  </style>
+</head>
+<body>
+  <header class="top">
+    <span class="brand">ॐ Knowledge Studio</span>
+    <nav>
+      <a href="/admin">Dashboard</a>
+      <a href="/admin/recorder">Recorder</a>
+      <a href="/admin/recordings">Recordings</a>
+    </nav>
+    <span class="spacer"></span>
+    <span class="who">{{ user.email if user else '' }}</span>
+    <nav><a href="/logout">Logout</a></nav>
+  </header>
+  <main>
+    {% block body %}{% endblock %}
+  </main>
+</body>
+</html>

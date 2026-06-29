@@ -1,0 +1,33 @@
+{% extends "admin/base.html" %}
+{% block title %}Recorder · Knowledge Studio{% endblock %}
+
+{% block styles %}
+  .meta { opacity:.7; font-size:14px; margin-bottom:16px; }
+{% endblock %}
+
+{% block body %}
+<h1>Recorder — questions</h1>
+<p class="meta">{{ questions|length }} of {{ total }} questions seeded. Pick one to see the canonical shloka, the LLM baseline floor, and record your answer.</p>
+
+{% if questions %}
+<table>
+  <thead><tr><th style="width:60px">#</th><th>Question</th><th style="width:120px">Gita ref</th><th style="width:120px">Domain</th><th style="width:110px"></th></tr></thead>
+  <tbody>
+    {% for q in questions %}
+    <tr>
+      <td>{{ q.q_number or '—' }}</td>
+      <td>{{ q.question_text }}</td>
+      <td>{{ q.gita_reference or '—' }}</td>
+      <td>{{ q.domain or '—' }}</td>
+      <td><a class="btn" href="/admin/recorder/{{ q.id }}">Record</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="card">
+  <p>No questions yet.</p>
+  <form method="post" action="/admin/seed"><button class="btn" type="submit">Seed starter questions</button></form>
+</div>
+{% endif %}
+{% endblock %}

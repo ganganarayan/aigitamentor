@@ -11,12 +11,17 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
+from app.admin import router as admin_router
+from app.auth import router as auth_router
+from app.auth.deps import RedirectToLogin
 from app.config import settings
 from app.db import startup_db_check
+from app.mentor import router as mentor_router
 from app.routers import health, public
 
 logging.basicConfig(
@@ -49,6 +54,15 @@ app = FastAPI(
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-# Routers — public surface + health for now; gated modules land in later phases.
+# Bounce unauthenticated browsers to the login page (preserving the target).
+@app.exception_handler(RedirectToLogin)
+async def _redirect_to_login(request: Request, exc: RedirectToLogin):
+    return RedirectResponse(f"/login?next={exc.next_url}", status_code=303)
+
+
+# Routers — public surface, auth, gated mentor, and the admin Knowledge Studio.
 app.include_router(health.router)
 app.include_router(public.router)
+app.include_router(auth_router.router)
+app.include_router(mentor_router.router)
+app.include_router(admin_router.router)
