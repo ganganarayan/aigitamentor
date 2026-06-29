@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}AI Gita Mentor — Gita wisdom for the modern nervous system{% endblock %}
+{% block description %}The digital extension of Ganga Narayan Das. Not generic Gita information — diagnosis, one prescribed step, and a practice companion that remembers your journey.{% endblock %}
+
+{% block styles %}
+  header.hero {
+    background: linear-gradient(180deg, var(--parchment) 0%, var(--cream) 100%);
+    border-bottom: 1px solid rgba(201, 150, 59, 0.25);
+  }
+  .hero-inner { padding: 88px 24px 72px; text-align: center; }
+  .om { font-size: 40px; color: var(--gold); opacity: 0.85; }
+  h1.display { font-size: clamp(40px, 7vw, 68px); line-height: 1.05; margin: 12px 0 8px; color: var(--dark); font-weight: 600; }
+  .tagline { font-family: "Cormorant Garamond", serif; font-size: clamp(20px, 3.2vw, 28px); color: var(--ink); font-weight: 500; }
+  .kicker { color: var(--saffron); font-size: 13px; margin-bottom: 8px; }
+  .cta {
+    display: inline-block; margin-top: 32px; padding: 16px 38px;
+    background: var(--saffron); color: #fff; border-radius: 999px;
+    font-family: "Cinzel", serif; letter-spacing: 0.06em; font-size: 15px;
+    box-shadow: 0 8px 24px rgba(232, 130, 26, 0.28);
+  }
+  .cta:hover { background: #d2740f; }
+  section.pillars { padding: 64px 24px; }
+  .grid { display: grid; gap: 24px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .card { background: #fff; border: 1px solid rgba(201, 150, 59, 0.22); border-radius: 16px; padding: 26px; }
+  .card h3 { font-family: "Cormorant Garamond", serif; font-size: 24px; margin: 0 0 8px; color: var(--dark); }
+  .card p { margin: 0; font-size: 15px; color: var(--ink); }
+  footer { text-align: center; padding: 40px 24px 56px; color: rgba(58, 40, 16, 0.6); font-size: 13px; }
+  .disclaimer { max-width: 720px; margin: 0 auto 12px; }
+{% endblock %}
+
+{% block body %}
+<header class="hero">
+  <div class="hero-inner wrap">
+    <div class="om">ॐ</div>
+    <div class="kicker label">Apply Gita Wisdom</div>
+    <h1 class="display">AI Gita Mentor</h1>
+    <p class="tagline">The Gita as an engineering manual for your nervous system —<br />in the voice of Ganga Narayan Das.</p>
+    <a class="cta" href="/app">Try Free AI Mentor</a>
+  </div>
+</header>
+
+<section class="pillars wrap">
+  <div class="grid">
+    <div class="card">
+      <h3>It diagnoses, not explains</h3>
+      <p>A generic AI explains the Gita. This names the precise nervous-system mechanism behind what you're facing — and its Gita correlate.</p>
+    </div>
+    <div class="card">
+      <h3>One step, made for you</h3>
+      <p>No menu of ten tips. A single, do-able practice, calibrated to your assessment band and what you've already shared.</p>
+    </div>
+    <div class="card">
+      <h3>It remembers your journey</h3>
+      <p>A practice companion across time. It picks up where you left off and builds on the work you've already begun.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p class="disclaimer">Spiritual guidance rooted in the Gita and the Neuro-Acoustic Protocol — not therapy, medical, legal, or financial advice. 18+.</p>
+  <p>© Apply Gita Wisdom · Ganga Narayan Das</p>
+</footer>
+{% endblock %}

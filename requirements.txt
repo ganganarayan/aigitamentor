@@ -1,0 +1,36 @@
+# AI Gita Mentor — runtime dependencies
+# Pinned to versions with stable wheels on Python 3.12 (Railway build target).
+
+# --- Web framework / server ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+jinja2==3.1.5
+python-multipart==0.0.20
+itsdangerous==2.2.0
+
+# --- Config ---
+pydantic==2.10.4
+pydantic-settings==2.7.1
+python-dotenv==1.0.1
+email-validator==2.2.0
+
+# --- Database (Postgres + pgvector) ---
+SQLAlchemy==2.0.36
+psycopg[binary]==3.2.3
+pgvector==0.3.6
+alembic==1.14.0
+
+# --- Auth / security ---
+PyJWT==2.10.1
+passlib[bcrypt]==1.7.4
+
+# --- LLM / embeddings ---
+anthropic==0.42.0
+openai==1.59.6
+httpx==0.28.1
+
+# --- Payments / integrations (used in later phases; safe pure-python deps) ---
+razorpay==1.4.2
+google-api-python-client==2.157.0
+google-auth==2.37.0
+google-auth-oauthlib==1.2.1

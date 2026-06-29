@@ -1,0 +1,95 @@
+"""AI Mentor runtime (Section 4.5).
+
+conversations/messages are the chat. ``generations`` is the "AI Answer
+Database" — an asset, not a chat cache. Validated, high-feedback generations
+can be promoted into the public KB, but are NEVER auto-replayed to a different
+user in personalized chat.
+"""
+
+from __future__ import annotations
+
+from datetime import date
+
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Date,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from pgvector.sqlalchemy import Vector
+
+from app.models.base import Base, PkMixin, TimestampMixin
+from app.models.corpus import EMBED_DIM
+
+
+class Conversation(Base, PkMixin, TimestampMixin):
+    __tablename__ = "conversations"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str | None] = mapped_column(String(300))
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    messages: Mapped[list["Message"]] = relationship(
+        back_populates="conversation", cascade="all, delete-orphan", order_by="Message.id"
+    )
+
+
+class Message(Base, PkMixin, TimestampMixin):
+    __tablename__ = "messages"
+
+    conversation_id: Mapped[int] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"), index=True
+    )
+    role: Mapped[str] = mapped_column(String(20))  # user|assistant|system
+    content: Mapped[str] = mapped_column(Text)
+    generation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("generations.id", ondelete="SET NULL")
+    )
+
+    conversation: Mapped["Conversation"] = relationship(back_populates="messages")
+
+
+class Generation(Base, PkMixin, TimestampMixin):
+    """One produced AI answer + its full retrieval/eval/feedback record."""
+
+    __tablename__ = "generations"
+
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    conversation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("conversations.id", ondelete="SET NULL"), index=True
+    )
+    question_text: Mapped[str | None] = mapped_column(Text)
+    query_embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBED_DIM))
+    retrieved_chunk_ids: Mapped[dict | None] = mapped_column(JSONB)
+    final_prompt: Mapped[str | None] = mapped_column(Text)
+    final_answer: Mapped[str | None] = mapped_column(Text)
+    model: Mapped[str | None] = mapped_column(String(80))
+    tokens_in: Mapped[int | None] = mapped_column(Integer)
+    tokens_out: Mapped[int | None] = mapped_column(Integer)
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    cost: Mapped[float | None] = mapped_column(Float)
+    retrieval_score: Mapped[float | None] = mapped_column(Float)
+    verse_accuracy: Mapped[bool | None] = mapped_column(Boolean)  # deterministic check
+    eval_scores: Mapped[dict | None] = mapped_column(JSONB)  # sampled LLM-judge
+    feedback: Mapped[dict | None] = mapped_column(JSONB)  # liked/copied/shared/edited
+    promoted_to_public: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class UsageCounter(Base):
+    """Per-tier rate-limit accounting, one row per user per period_date."""
+
+    __tablename__ = "usage_counters"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    period_date: Mapped[date] = mapped_column(Date, index=True)
+    message_count: Mapped[int] = mapped_column(Integer, default=0)
+    tokens_in: Mapped[int] = mapped_column(Integer, default=0)
+    tokens_out: Mapped[int] = mapped_column(Integer, default=0)

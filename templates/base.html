@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}AI Gita Mentor{% endblock %}</title>
+  <meta name="description" content="{% block description %}Gita wisdom applied to the modern nervous system — your AI mentor in the voice of Ganga Narayan Das.{% endblock %}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Cinzel:wght@500;600&family=Jost:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --saffron: #E8821A;
+      --gold: #C9963B;
+      --gold-lt: #F0C96A;
+      --cream: #FAF3E8;
+      --parchment: #F2E6CC;
+      --dark: #2E1F0F;
+      --ink: #3A2810;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Jost", system-ui, sans-serif;
+      font-weight: 300;
+      color: var(--ink);
+      background: var(--cream);
+      line-height: 1.6;
+    }
+    .display { font-family: "Cormorant Garamond", serif; }
+    .label { font-family: "Cinzel", serif; letter-spacing: 0.08em; text-transform: uppercase; }
+    a { color: var(--saffron); text-decoration: none; }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+    {% block styles %}{% endblock %}
+  </style>
+</head>
+<body>
+  {% block body %}{% endblock %}
+</body>
+</html>
