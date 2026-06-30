@@ -47,6 +47,68 @@ def _primary_verse_for(db: Session, question: Question) -> Verse | None:
     return db.execute(select(Verse).where(Verse.verse_ref == ref)).scalar_one_or_none()
 
 
+def _latest_typed_answer(db: Session, question_id: int) -> KbAnswer | None:
+    """Most recent typed (manual-source) answer for a question, if any."""
+    return (
+        db.execute(
+            select(KbAnswer)
+            .join(KbSource, KbAnswer.source_id == KbSource.id)
+            .where(KbAnswer.question_id == question_id, KbSource.type == "manual")
+            .order_by(KbAnswer.id.desc())
+        )
+        .scalars()
+        .first()
+    )
+
+
+def _save_typed_answer(db: Session, question_id: int, tier: str, text: str, user: User) -> KbAnswer:
+    """Upsert a typed/pasted/dictated answer for (question, tier).
+
+    The typed text IS the transcript — same field a transcription would fill —
+    so it flows through the identical publish → ingest pipeline. Idempotent per
+    (question, tier): re-saving updates in place rather than duplicating.
+    """
+    if tier not in TIER_RANK:
+        tier = "seeker"
+    answer = (
+        db.execute(
+            select(KbAnswer)
+            .join(KbSource, KbAnswer.source_id == KbSource.id)
+            .where(
+                KbAnswer.question_id == question_id,
+                KbAnswer.tier == tier,
+                KbSource.type == "manual",
+            )
+            .order_by(KbAnswer.id.desc())
+        )
+        .scalars()
+        .first()
+    )
+    if answer is None:
+        source = KbSource(type="manual", title=f"Typed answer · Q{question_id}", uploaded_by=user.id)
+        db.add(source)
+        db.flush()
+        answer = KbAnswer(
+            question_id=question_id,
+            source_id=source.id,
+            tier=tier,
+            transcript_raw=text,
+            transcript_edited=text,
+            answer_final=text,
+            status="published",
+            version=1,
+        )
+        db.add(answer)
+    else:
+        answer.transcript_edited = text
+        answer.answer_final = text
+        answer.status = "published"
+        answer.version = (answer.version or 1) + 1
+    db.commit()
+    db.refresh(answer)
+    return answer
+
+
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
 def dashboard(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
@@ -73,7 +135,13 @@ def recorder_list(request: Request, user: User = Depends(require_admin), db: Ses
     total = 160
     return templates.TemplateResponse(
         "admin/recorder_list.html",
-        {"request": request, "user": user, "questions": questions, "total": total},
+        {
+            "request": request,
+            "user": user,
+            "questions": questions,
+            "total": total,
+            "tiers": list(TIER_RANK.keys()),
+        },
     )
 
 
@@ -97,6 +165,16 @@ def recorder(
             .limit(5)
         ).scalars()
     )
+    # Prefill the answer box with the latest typed answer, else the latest
+    # transcript — so a transcribed recording lands in the SAME editable box.
+    typed = _latest_typed_answer(db, question_id)
+    prefill_text = ""
+    prefill_tier = "seeker"
+    if typed is not None:
+        prefill_text = typed.answer_final or ""
+        prefill_tier = typed.tier
+    elif recent and recent[0].transcript_text:
+        prefill_text = recent[0].transcript_text
     return templates.TemplateResponse(
         "admin/recorder.html",
         {
@@ -108,6 +186,8 @@ def recorder(
             "providers": llm_baselines.PROVIDERS,
             "recent": recent,
             "tiers": list(TIER_RANK.keys()),
+            "prefill_text": prefill_text,
+            "prefill_tier": prefill_tier,
         },
     )
 
@@ -149,6 +229,27 @@ async def upload_recording(
     # Transcribe → Drive → delete-temp runs in the background.
     background.add_task(rec_service.process_by_id, recording.id)
     return RedirectResponse(f"/admin/recorder/{question_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/recorder/{question_id}/text")
+def save_text_answer(
+    question_id: int,
+    text: str = Form(...),
+    tier: str = Form("seeker"),
+    return_to: str = Form("detail"),
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Type / paste / dictate path: save text directly as a published answer.
+
+    Same destination as a transcribed recording — the text becomes the answer
+    and is ready to ingest from the Embeddings page.
+    """
+    text = (text or "").strip()
+    if text:
+        _save_typed_answer(db, question_id, tier, text, user)
+    dest = "/admin/recorder" if return_to == "list" else f"/admin/recorder/{question_id}"
+    return RedirectResponse(dest, status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/recordings", response_class=HTMLResponse)

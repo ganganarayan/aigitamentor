@@ -3,15 +3,23 @@
 
 {% block styles %}
   .meta { opacity:.7; font-size:14px; margin-bottom:16px; }
+  .btn.type { background:#fff; color:var(--ink); border:1px solid rgba(58,40,16,.25); }
+  .actions { display:flex; gap:8px; justify-content:flex-end; }
+  .typerow td { background:#FFFDF8; }
+  .typebox { display:none; }
+  .typebox.open { display:block; }
+  .typebox textarea { width:100%; min-height:130px; padding:11px 13px; border:1px solid rgba(58,40,16,.2); border-radius:8px; font:inherit; resize:vertical; }
+  .typebox .controls { display:flex; gap:10px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+  .typebox .hint { font-size:12px; opacity:.6; }
 {% endblock %}
 
 {% block body %}
 <h1>Recorder — questions</h1>
-<p class="meta">{{ questions|length }} of {{ total }} questions seeded. Pick one to see the canonical shloka, the LLM baseline floor, and record your answer.</p>
+<p class="meta">{{ questions|length }} of {{ total }} questions seeded. <strong>Record</strong> opens the full page (canonical shloka + LLM baselines). <strong>Type</strong> lets you type, paste, or dictate (WisperFlow) the answer right here.</p>
 
 {% if questions %}
 <table>
-  <thead><tr><th style="width:60px">#</th><th>Question</th><th style="width:120px">Gita ref</th><th style="width:120px">Domain</th><th style="width:110px"></th></tr></thead>
+  <thead><tr><th style="width:50px">#</th><th>Question</th><th style="width:110px">Gita ref</th><th style="width:120px">Domain</th><th style="width:200px"></th></tr></thead>
   <tbody>
     {% for q in questions %}
     <tr>
@@ -19,7 +27,28 @@
       <td>{{ q.question_text }}</td>
       <td>{{ q.gita_reference or '—' }}</td>
       <td>{{ q.domain or '—' }}</td>
-      <td><a class="btn" href="/admin/recorder/{{ q.id }}">Record</a></td>
+      <td>
+        <div class="actions">
+          <button type="button" class="btn type" onclick="toggleType({{ q.id }})">Type</button>
+          <a class="btn" href="/admin/recorder/{{ q.id }}">Record</a>
+        </div>
+      </td>
+    </tr>
+    <tr class="typerow">
+      <td colspan="5" style="padding:0">
+        <div class="typebox" id="typebox-{{ q.id }}" style="padding:14px 12px">
+          <form method="post" action="/admin/recorder/{{ q.id }}/text">
+            <input type="hidden" name="return_to" value="list" />
+            <textarea id="ta-{{ q.id }}" name="text" placeholder="Type, paste, or dictate (WisperFlow) GND's answer to this question…"></textarea>
+            <div class="controls">
+              <label style="margin:0">Tier</label>
+              <select name="tier" style="width:auto">{% for t in tiers %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
+              <button class="btn" type="submit">Save answer</button>
+              <span class="hint">Saved as a published answer for this tier — then ingest it from Embeddings.</span>
+            </div>
+          </form>
+        </div>
+      </td>
     </tr>
     {% endfor %}
   </tbody>
@@ -30,4 +59,12 @@
   <form method="post" action="/admin/seed"><button class="btn" type="submit">Seed starter questions</button></form>
 </div>
 {% endif %}
+
+<script>
+function toggleType(id) {
+  var box = document.getElementById('typebox-' + id);
+  var open = box.classList.toggle('open');
+  if (open) { var ta = document.getElementById('ta-' + id); if (ta) ta.focus(); }
+}
+</script>
 {% endblock %}

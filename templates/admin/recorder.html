@@ -47,6 +47,7 @@
     <div id="recControls">
       <button class="btn" id="startBtn" type="button">● Record</button>
       <button class="btn secondary" id="stopBtn" type="button" disabled>■ Stop</button>
+      <button class="btn secondary" id="typeBtn" type="button">⌨ Type / paste / dictate</button>
       <span id="status">idle</span>
     </div>
     <audio id="player" controls hidden></audio>
@@ -54,6 +55,22 @@
       <button class="btn" id="uploadBtn" type="submit" disabled>Upload &amp; transcribe</button>
     </form>
     <p style="font-size:12px;opacity:.6;margin-top:10px">Audio uploads to Railway temp, is transcribed, copied to Drive, then the temp file is deleted.</p>
+
+    <div id="typeBox" style="margin-top:14px; {% if not prefill_text %}display:none{% endif %}">
+      <h3 style="margin-bottom:6px">Answer text</h3>
+      <p style="font-size:12px;opacity:.65;margin:0 0 8px">Type, paste, or dictate (WisperFlow types straight in). A transcribed recording lands here too — edit and save. This is the answer that gets published &amp; ingested.</p>
+      <form method="post" action="/admin/recorder/{{ question.id }}/text">
+        <input type="hidden" name="return_to" value="detail" />
+        <textarea name="text" style="width:100%; min-height:200px; padding:11px 13px; border:1px solid rgba(58,40,16,.2); border-radius:8px; font:inherit; resize:vertical">{{ prefill_text }}</textarea>
+        <div style="display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap">
+          <label style="margin:0">Tier</label>
+          <select name="tier" style="width:auto">
+            {% for t in tiers %}<option value="{{ t }}" {% if t == prefill_tier %}selected{% endif %}>{{ t }}</option>{% endfor %}
+          </select>
+          <button class="btn" type="submit">Save answer</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <div class="panel">
@@ -101,6 +118,17 @@
 
 <script>
 (function () {
+  // Type / paste / dictate toggle.
+  const typeBtn = document.getElementById('typeBtn');
+  const typeBox = document.getElementById('typeBox');
+  if (typeBtn && typeBox) {
+    typeBtn.addEventListener('click', () => {
+      const show = typeBox.style.display === 'none';
+      typeBox.style.display = show ? 'block' : 'none';
+      if (show) { const ta = typeBox.querySelector('textarea'); if (ta) ta.focus(); }
+    });
+  }
+
   let mediaRecorder, chunks = [];
   const startBtn = document.getElementById('startBtn');
   const stopBtn = document.getElementById('stopBtn');
