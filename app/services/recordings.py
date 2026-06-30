@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import Recording
-from app.services import drive, transcription
+from app.services import ai_settings, drive, transcription
 
 logger = logging.getLogger("app.recordings")
 
@@ -44,11 +44,14 @@ def process_recording(db: Session, recording: Recording) -> Recording:
         db.commit()
         return recording
 
-    # 4) Transcribe from temp.
+    # 4) Transcribe from temp (key + model from the runtime AI settings).
     try:
         recording.status = "transcribing"
         db.commit()
-        recording.transcript_text = transcription.transcribe_file(path)
+        cfg = ai_settings.resolved(db)
+        recording.transcript_text = transcription.transcribe_file(
+            path, cfg.key_for("openai"), cfg.transcribe_model
+        )
         recording.status = "transcribed"
         db.commit()
     except Exception as exc:  # noqa: BLE001

@@ -29,6 +29,7 @@ from app.models import (
     Verse,
 )
 from app.models.corpus import TIER_RANK
+from app.services import ai_settings
 from app.services import ingestion
 from app.services import llm_baselines
 from app.services import recordings as rec_service
@@ -346,3 +347,59 @@ def ingest_all(background: BackgroundTasks, user: User = Depends(require_admin))
 def ingest_one(answer_id: int, background: BackgroundTasks, user: User = Depends(require_admin)):
     background.add_task(ingestion.ingest_answer_by_id, answer_id)
     return RedirectResponse("/admin/embeddings", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# --- Settings → AI (runtime, DB-backed) ------------------------------------
+
+@router.get("/settings", response_class=HTMLResponse)
+def settings_page(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    return templates.TemplateResponse(
+        "admin/settings.html", {"request": request, "user": user, "ai": ai_settings.view(db)}
+    )
+
+
+@router.post("/settings")
+def settings_save(
+    chat_provider: str = Form("claude"),
+    chat_model: str = Form(""),
+    embedding_model: str = Form(""),
+    transcribe_model: str = Form(""),
+    baseline_providers: list[str] = Form(default=[]),
+    anthropic_api_key: str = Form(""),
+    openai_api_key: str = Form(""),
+    gemini_api_key: str = Form(""),
+    perplexity_api_key: str = Form(""),
+    clear_anthropic: str = Form(""),
+    clear_openai: str = Form(""),
+    clear_gemini: str = Form(""),
+    clear_perplexity: str = Form(""),
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    key_updates = {
+        "anthropic": anthropic_api_key.strip(),
+        "openai": openai_api_key.strip(),
+        "gemini": gemini_api_key.strip(),
+        "perplexity": perplexity_api_key.strip(),
+    }
+    key_clears = [
+        provider
+        for provider, flag in [
+            ("anthropic", clear_anthropic),
+            ("openai", clear_openai),
+            ("gemini", clear_gemini),
+            ("perplexity", clear_perplexity),
+        ]
+        if flag
+    ]
+    ai_settings.update(
+        db,
+        chat_provider=chat_provider,
+        chat_model=chat_model.strip(),
+        embedding_model=embedding_model.strip(),
+        transcribe_model=transcribe_model.strip(),
+        baseline_providers=baseline_providers,
+        key_updates=key_updates,
+        key_clears=key_clears,
+    )
+    return RedirectResponse("/admin/settings", status_code=status.HTTP_303_SEE_OTHER)

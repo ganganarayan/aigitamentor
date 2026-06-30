@@ -7,8 +7,6 @@ into recording status='failed' with error_text, never a crash.
 
 from __future__ import annotations
 
-from app.config import settings
-
 _SANSKRIT_HINT = (
     "This audio discusses the Bhagavad Gita and the Neuro-Acoustic Protocol. "
     "Expect Sanskrit terms such as dharma, karma, sthira, rajas, sattva, "
@@ -16,15 +14,15 @@ _SANSKRIT_HINT = (
 )
 
 
-def transcribe_file(path: str) -> str:
-    if not settings.openai_api_key:
-        raise RuntimeError("OPENAI_API_KEY not configured")
+def transcribe_file(path: str, api_key: str | None, model: str) -> str:
+    if not api_key:
+        raise RuntimeError("OpenAI API key not configured")
     import openai
 
-    client = openai.OpenAI(api_key=settings.openai_api_key)
+    client = openai.OpenAI(api_key=api_key)
     with open(path, "rb") as fh:
         result = client.audio.transcriptions.create(
-            model=settings.transcribe_model,
+            model=model,
             file=fh,
             prompt=_SANSKRIT_HINT,
         )

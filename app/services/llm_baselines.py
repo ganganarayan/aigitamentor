@@ -14,8 +14,8 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.models import LlmBaseline, Question
+from app.services import ai_settings
 
 logger = logging.getLogger("app.baselines")
 
@@ -37,40 +37,40 @@ def _prompt(question_text: str) -> str:
     )
 
 
-def _claude(text: str) -> str:
-    if not settings.anthropic_api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY not configured")
+def _claude(text: str, api_key: str | None, model: str) -> str:
+    if not api_key:
+        raise RuntimeError("Anthropic API key not configured")
     import anthropic
 
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    client = anthropic.Anthropic(api_key=api_key)
     msg = client.messages.create(
-        model=settings.chat_model,
+        model=model,
         max_tokens=_MAX_TOKENS,
         messages=[{"role": "user", "content": _prompt(text)}],
     )
     return "".join(block.text for block in msg.content if getattr(block, "type", None) == "text")
 
 
-def _openai(text: str) -> str:
-    if not settings.openai_api_key:
-        raise RuntimeError("OPENAI_API_KEY not configured")
+def _openai(text: str, api_key: str | None, model: str) -> str:
+    if not api_key:
+        raise RuntimeError("OpenAI API key not configured")
     import openai
 
-    client = openai.OpenAI(api_key=settings.openai_api_key)
+    client = openai.OpenAI(api_key=api_key)
     resp = client.chat.completions.create(
-        model=_OPENAI_MODEL,
+        model=model,
         max_tokens=_MAX_TOKENS,
         messages=[{"role": "user", "content": _prompt(text)}],
     )
     return resp.choices[0].message.content or ""
 
 
-def _gemini(text: str) -> str:
-    if not settings.gemini_api_key:
-        raise RuntimeError("GEMINI_API_KEY not configured")
+def _gemini(text: str, api_key: str | None, model: str) -> str:
+    if not api_key:
+        raise RuntimeError("Gemini API key not configured")
     url = (
         f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{_GEMINI_MODEL}:generateContent?key={settings.gemini_api_key}"
+        f"{model}:generateContent?key={api_key}"
     )
     with httpx.Client(timeout=_TIMEOUT) as client:
         r = client.post(url, json={"contents": [{"parts": [{"text": _prompt(text)}]}]})
@@ -79,40 +79,45 @@ def _gemini(text: str) -> str:
     return data["candidates"][0]["content"]["parts"][0]["text"]
 
 
-def _perplexity(text: str) -> str:
-    if not settings.perplexity_api_key:
-        raise RuntimeError("PERPLEXITY_API_KEY not configured")
+def _perplexity(text: str, api_key: str | None, model: str) -> str:
+    if not api_key:
+        raise RuntimeError("Perplexity API key not configured")
     with httpx.Client(timeout=_TIMEOUT) as client:
         r = client.post(
             "https://api.perplexity.ai/chat/completions",
-            headers={"Authorization": f"Bearer {settings.perplexity_api_key}"},
-            json={"model": _PERPLEXITY_MODEL, "messages": [{"role": "user", "content": _prompt(text)}]},
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={"model": model, "messages": [{"role": "user", "content": _prompt(text)}]},
         )
         r.raise_for_status()
         data = r.json()
     return data["choices"][0]["message"]["content"]
 
 
-_DISPATCH = {"claude": _claude, "openai": _openai, "gemini": _gemini, "perplexity": _perplexity}
-
-
-def call_provider(provider: str, question_text: str) -> tuple[str | None, str | None]:
-    """Return (answer, error). Exactly one is non-None."""
-    fn = _DISPATCH.get(provider)
-    if fn is None:
-        return None, f"Unknown provider: {provider}"
+def call_provider(
+    provider: str, question_text: str, cfg: ai_settings.AiRuntime
+) -> tuple[str | None, str | None]:
+    """Return (answer, error). Exactly one is non-None. Keys/models come from cfg."""
     try:
-        return fn(question_text), None
+        if provider == "claude":
+            return _claude(question_text, cfg.key_for("anthropic"), cfg.chat_model), None
+        if provider == "openai":
+            return _openai(question_text, cfg.key_for("openai"), _OPENAI_MODEL), None
+        if provider == "gemini":
+            return _gemini(question_text, cfg.key_for("gemini"), _GEMINI_MODEL), None
+        if provider == "perplexity":
+            return _perplexity(question_text, cfg.key_for("perplexity"), _PERPLEXITY_MODEL), None
+        return None, f"Unknown provider: {provider}"
     except Exception as exc:  # noqa: BLE001 — isolate provider failures
         logger.warning("Baseline provider %s failed: %s", provider, exc)
         return None, str(exc)
 
 
 def generate_baselines(db: Session, question: Question) -> list[LlmBaseline]:
-    """(Re)generate baselines for a question across all providers."""
+    """(Re)generate baselines for a question across the configured providers."""
+    cfg = ai_settings.resolved(db)
     results: list[LlmBaseline] = []
-    for provider in PROVIDERS:
-        answer, error = call_provider(provider, question.question_text)
+    for provider in cfg.baseline_providers:
+        answer, error = call_provider(provider, question.question_text, cfg)
         row = db.execute(
             select(LlmBaseline).where(
                 LlmBaseline.question_id == question.id, LlmBaseline.provider == provider

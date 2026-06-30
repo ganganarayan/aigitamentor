@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.models import KbAnswer, KbChunk, KbSource, Question, Verse
 from app.models.corpus import tier_level
+from app.services import ai_settings
 from app.services.embeddings import embed_texts
 
 logger = logging.getLogger("app.ingestion")
@@ -87,7 +88,8 @@ def ingest_answer(db: Session, answer: KbAnswer) -> int:
     min_tier = tier_level(answer.tier)
     attribution = _attribution(answer, source, question, verse_ref)
 
-    vectors = embed_texts(pieces)  # raises if no key — caller handles
+    cfg = ai_settings.resolved(db)
+    vectors = embed_texts(pieces, cfg.key_for("openai"), cfg.embedding_model)  # raises if no key
     for idx, (piece, vector) in enumerate(zip(pieces, vectors)):
         db.add(
             KbChunk(
