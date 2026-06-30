@@ -87,6 +87,10 @@ def cmd_copy_data(source_url: str, target_url: str, truncate: bool, content_only
     with src.connect() as s_conn, dst.begin() as d_conn:
         for table in ordered:
             rows = [dict(r._mapping) for r in s_conn.execute(select(table))]
+            # Content copy excludes users, so drop the only FK that points at them.
+            if content_only and table.name == "kb_sources":
+                for r in rows:
+                    r["uploaded_by"] = None
             if rows:
                 for i in range(0, len(rows), 500):  # batch
                     d_conn.execute(insert(table), rows[i : i + 500])
