@@ -50,10 +50,12 @@ The Gita is used here as an engineering manual, not a religious text. Never pros
 
 HOW YOU ANSWER — every substantial reply does four things:
 1. Name the mechanism, precisely — the specific nervous-system event and its Gita correlate. You diagnose; a generic LLM only explains.
-2. Make it about THIS person — use their assessment band ({assessment_band}), what they've said ({conversation_memory}), and their message.
+2. Make it about THIS person — use their age ({user_age}), profession ({user_profession}), gender ({user_gender}), assessment band ({assessment_band}), what they've said ({conversation_memory}), and their message.
 3. Give exactly one concrete first step — one precise, do-able practice drawn from {retrieved_context}. Prescription, not a menu.
 4. Reframe and open continuity — a short identity reframe and a forward hook ("sit with this a few days; tell me what shifts").
 Default to depth and specificity over hedging. Never retreat into "it depends / consult a professional / ten general tips". Be warm, precise, grounded; engineering calm, not sentimentality.
+
+PERSONALIZATION — your signature move. On a user's very first contact you ask for their age, profession, and gender, and invite them to elaborate their situation, BEFORE giving a full answer — no generic AI does this, and it is how you make the guidance fit their actual life. (The app handles that first turn for you and stores their answers.) Once you know them, weave their age, profession, and gender concretely into the diagnosis and the prescribed step — you speak to a 42-year-old founder differently than to a 24-year-old student.
 
 VERSE DISCIPLINE — non-negotiable. Cite a specific verse ONLY when it appears in {retrieved_context} with its canonical text. Never invent, renumber, or paraphrase-from-memory a Gita verse. If no verse was retrieved, speak to the principle without a citation rather than risk a wrong one.
 
@@ -69,11 +71,22 @@ PRESCRIPTION & ESCALATION. You are the explorer lane. Ladder: Seeker → Abhyās
 SAFETY — overrides everything. If the user signals self-harm, suicidal thoughts, abuse, acute crisis, or danger: stop the frame entirely. Do not diagnose a mechanism, do not prescribe, do not upsell. Respond as a caring human, take them seriously, gently encourage them to reach a trusted person or a professional/crisis line, and stay supportive. Never provide methods or anything that could enable harm. You are guidance rooted in the Gita and the Neuro-Acoustic Protocol — not a therapist, doctor, lawyer, or financial advisor. Users are 18+.
 
 RUNTIME CONTEXT
-- User: {user_name} · Tier: {user_tier} · Assessment band: {assessment_band}
+- User: {user_name} · Tier: {user_tier} · Age: {user_age} · Profession: {user_profession} · Gender: {user_gender} · Assessment band: {assessment_band}
 - Retrieved knowledge for this turn: {retrieved_context}
 - What you remember about them: {conversation_memory}
 
 Answer as the AI Gita Mentor."""
+
+
+# The fixed first-contact message — the personalization differentiator. The app
+# sends this as the mentor's first reply, then stores the user's profile.
+ONBOARDING_PROMPT = (
+    "Before I answer — and so this is genuinely *yours*, not a generic reply — may I know a little "
+    "about you: your **age**, your **profession**, and your **gender**?\n\n"
+    "And if you can say a bit more about the situation you're in, I can be far more exact — and point "
+    "you to the real solution, not a general one.\n\n"
+    "*(No other AI asks you this first. It's how I make the guidance fit your actual life.)*"
+)
 
 
 def get_system_prompt(db: Session) -> str:
@@ -81,6 +94,51 @@ def get_system_prompt(db: Session) -> str:
         select(AiConfig).where(AiConfig.active.is_(True)).order_by(AiConfig.version.desc())
     ).scalars().first()
     return row.system_prompt if row and row.system_prompt else DEFAULT_SYSTEM_PROMPT
+
+
+def extract_profile(db: Session, text: str) -> dict:
+    """Pull {age, profession, gender} from the user's free-text profile reply.
+
+    Best-effort: returns {} if no key or on any failure. Never raises."""
+    import json
+
+    cfg = ai_settings.resolved(db)
+    key = cfg.key_for("anthropic")
+    if not key:
+        return {}
+    try:
+        import anthropic
+
+        client = anthropic.Anthropic(api_key=key)
+        resp = client.messages.create(
+            model=cfg.chat_model,
+            max_tokens=200,
+            system=(
+                "Extract the user's age, profession, and gender from their message. Reply with ONLY a "
+                'JSON object: {"age": <integer or null>, "profession": <string or null>, '
+                '"gender": <string or null>}. Use null for anything not clearly stated.'
+            ),
+            messages=[{"role": "user", "content": text}],
+        )
+        raw = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if not match:
+            return {}
+        data = json.loads(match.group(0))
+        try:
+            age = int(data.get("age")) if data.get("age") is not None else None
+        except (TypeError, ValueError):
+            age = None
+        prof = data.get("profession")
+        gender = data.get("gender")
+        return {
+            "age": age,
+            "profession": (str(prof).strip()[:160] if prof else None),
+            "gender": (str(gender).strip()[:40] if gender else None),
+        }
+    except Exception:  # noqa: BLE001
+        logger.warning("Profile extraction failed", exc_info=True)
+        return {}
 
 
 # --- rate limiting ----------------------------------------------------------
@@ -161,12 +219,15 @@ def _history_messages(db: Session, conversation: Conversation) -> list[dict]:
         .order_by(Message.id.desc())
         .limit(_HISTORY_TURNS)
     ).scalars().all()
-    return [{"role": m.role, "content": m.content} for m in reversed(rows)]
+    msgs = [{"role": m.role, "content": m.content} for m in reversed(rows)]
+    while msgs and msgs[0]["role"] != "user":  # Claude requires the first turn to be 'user'
+        msgs.pop(0)
+    return msgs
 
 
 # --- the Claude call --------------------------------------------------------
 
-def _call_claude(system: str, history: list[dict], user_message: str, cfg) -> tuple[str, int, int]:
+def _call_claude(system: str, messages: list[dict], cfg) -> tuple[str, int, int]:
     key = cfg.key_for("anthropic")
     if not key:
         raise RuntimeError("Anthropic API key not configured — set it in Settings → AI.")
@@ -177,7 +238,7 @@ def _call_claude(system: str, history: list[dict], user_message: str, cfg) -> tu
         model=cfg.chat_model,
         max_tokens=1024,
         system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-        messages=history + [{"role": "user", "content": user_message}],
+        messages=messages,
     )
     text = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
     usage = getattr(resp, "usage", None)
@@ -224,16 +285,21 @@ def answer(db: Session, user, conversation: Conversation, user_message: str) -> 
         {
             "user_name": user.name or "friend",
             "user_tier": user.tier,
+            "user_age": user.age or "unknown",
+            "user_profession": user.profession or "unknown",
+            "user_gender": user.gender or "unknown",
             "assessment_band": user.assessment_band or "unknown",
             "retrieved_context": context,
             "conversation_memory": _build_memory(db, user, conversation),
         },
     )
+    # History already includes the just-saved user message (the caller persists it
+    # before calling answer), so it goes straight to Claude — no double-append.
     history = _history_messages(db, conversation)
 
     # 3) call Claude (timed)
     started = time.perf_counter()
-    answer_text, tin, tout = _call_claude(system, history, user_message, cfg)
+    answer_text, tin, tout = _call_claude(system, history, cfg)
     latency_ms = int((time.perf_counter() - started) * 1000)
 
     # 4) deterministic verse check + log

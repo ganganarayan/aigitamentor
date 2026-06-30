@@ -7,7 +7,7 @@ import logging
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth.deps import require_user
@@ -85,6 +85,38 @@ def chat_send(payload: ChatIn, user=Depends(require_user), db: Session = Depends
         db.commit()
         db.refresh(conv)
 
+    # Persist the user's message first; title the conversation from the first line.
+    db.add(Message(conversation_id=conv.id, role="user", content=message))
+    if not conv.title:
+        conv.title = message[:60]
+    db.commit()
+
+    # First-contact onboarding — the personalization differentiator.
+    if not user.onboarded:
+        prior_assistant = db.execute(
+            select(func.count())
+            .select_from(Message)
+            .join(Conversation, Message.conversation_id == Conversation.id)
+            .where(Conversation.user_id == user.id, Message.role == "assistant")
+        ).scalar_one()
+        if prior_assistant == 0:
+            # Their very first message → ask for age/profession/gender before answering.
+            db.add(Message(conversation_id=conv.id, role="assistant", content=chat.ONBOARDING_PROMPT))
+            db.commit()
+            return JSONResponse(
+                {"answer": chat.ONBOARDING_PROMPT, "conversation_id": conv.id, "onboarding": True}
+            )
+        # We already asked → this message carries their profile. Store it, then answer.
+        profile = chat.extract_profile(db, message)
+        if profile.get("age") is not None:
+            user.age = profile["age"]
+        if profile.get("profession"):
+            user.profession = profile["profession"]
+        if profile.get("gender"):
+            user.gender = profile["gender"]
+        user.onboarded = True
+        db.commit()
+
     # Tier rate limit.
     allowed, count, cap = chat.check_and_increment_usage(db, user)
     if not allowed:
@@ -99,12 +131,6 @@ def chat_send(payload: ChatIn, user=Depends(require_user), db: Session = Depends
                 ),
             }
         )
-
-    # Persist the user's message; title the conversation from the first line.
-    db.add(Message(conversation_id=conv.id, role="user", content=message))
-    if not conv.title:
-        conv.title = message[:60]
-    db.commit()
 
     # Generate the grounded answer.
     try:

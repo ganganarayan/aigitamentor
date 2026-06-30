@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -29,6 +29,11 @@ class User(Base, PkMixin, TimestampMixin):
     assessment_band: Mapped[str | None] = mapped_column(String(60))  # from Assess360
     referral_ai_source: Mapped[str | None] = mapped_column(String(60))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Profile collected on first contact (the personalization differentiator).
+    age: Mapped[int | None] = mapped_column(Integer)
+    profession: Mapped[str | None] = mapped_column(String(160))
+    gender: Mapped[str | None] = mapped_column(String(40))
+    onboarded: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
 
 
 class Subscription(Base, PkMixin, TimestampMixin):

@@ -96,7 +96,7 @@
             <div class="msg {{ 'user' if m.role == 'user' else 'assistant' }}">
               <div class="av">{{ '🧑' if m.role == 'user' else 'ॐ' }}</div>
               <div>
-                <div class="bub">{{ m.content }}</div>
+                <div class="bub">{{ m.content | md }}</div>
                 {% if m.role == 'assistant' and m.generation_id %}
                 <div class="acts">
                   <button onclick="fb({{ m.generation_id }},'liked',this)">👍 Helpful</button>
@@ -136,13 +136,14 @@
   input.addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMsg(); } });
 
   function esc(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+  function md(s){ let h=esc(s); h=h.replace(/\*\*([^*\n]+)\*\*/g,'<strong>$1</strong>'); h=h.replace(/\*([^*\n]+)\*/g,'<em>$1</em>'); return h; }
 
   function addMsg(role, content, genId){
     const empty=thread.querySelector('.empty'); if(empty) empty.remove();
     const wrap=document.createElement('div'); wrap.className='msg '+(role==='user'?'user':'assistant');
     let acts='';
     if(role==='assistant' && genId){ acts='<div class="acts"><button>👍 Helpful</button><button>⧉ Copy</button></div>'; }
-    wrap.innerHTML='<div class="av">'+(role==='user'?'🧑':'ॐ')+'</div><div><div class="bub">'+esc(content)+'</div>'+acts+'</div>';
+    wrap.innerHTML='<div class="av">'+(role==='user'?'🧑':'ॐ')+'</div><div><div class="bub">'+md(content)+'</div>'+acts+'</div>';
     thread.appendChild(wrap);
     if(role==='assistant' && genId){
       const btns=wrap.querySelectorAll('.acts button');

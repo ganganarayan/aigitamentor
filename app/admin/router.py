@@ -128,6 +128,14 @@ def dashboard(request: Request, user: User = Depends(require_admin), db: Session
     )
 
 
+@router.get("/users", response_class=HTMLResponse)
+def users_list(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    rows = list(db.execute(select(User).order_by(User.id.desc()).limit(300)).scalars())
+    return templates.TemplateResponse(
+        "admin/users.html", {"request": request, "user": user, "rows": rows}
+    )
+
+
 @router.get("/recorder", response_class=HTMLResponse)
 def recorder_list(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
     questions = list(
