@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Legal · AI Gita Mentor{% endblock %}</title>
+<meta name="description" content="{% block description %}Policies for the AI Gita Mentor by Apply Gita Wisdom.{% endblock %}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=Cinzel:wght@400;600&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--saffron:#E8821A;--gold:#C9963B;--gold-lt:#F0C96A;--cream:#FAF3E8;--parchment:#F2E6CC;--dark:#2E1F0F;--dark2:#1C1410;--ink:#3A2810;--ink-lt:#7A5C38}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--cream);color:var(--ink);font-family:'Jost',sans-serif;font-weight:300;line-height:1.8}
+  a{color:var(--saffron);text-decoration:none}a:hover{text-decoration:underline}
+  header{background:var(--dark);padding:16px 32px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+  header .logo{font-family:'Cinzel',serif;font-size:13px;letter-spacing:.18em;color:var(--gold-lt);text-decoration:none;display:flex;gap:10px;align-items:center}
+  header .logo span{font-size:20px;color:var(--gold)}
+  header .cta{font-family:'Jost',sans-serif;font-size:12px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--dark);background:var(--gold);padding:9px 20px;border-radius:0;text-decoration:none}
+  .doc{max-width:820px;margin:0 auto;padding:64px 24px 80px}
+  .doc .kicker{font-family:'Cinzel',serif;font-size:10px;letter-spacing:.3em;color:var(--saffron);text-transform:uppercase;margin-bottom:12px}
+  .doc h1{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:clamp(34px,6vw,52px);color:var(--dark);line-height:1.1;margin-bottom:8px}
+  .doc .updated{font-size:13px;color:var(--ink-lt);margin-bottom:36px}
+  .doc h2{font-family:'Cormorant Garamond',serif;font-weight:400;font-size:26px;color:var(--dark);margin:36px 0 12px}
+  .doc h3{font-size:16px;font-weight:500;color:var(--ink);margin:24px 0 8px;letter-spacing:.02em}
+  .doc p{font-size:15px;color:var(--ink);margin-bottom:14px}
+  .doc ul{margin:0 0 16px 22px}
+  .doc li{font-size:15px;margin-bottom:8px}
+  .doc .note{background:var(--parchment);border-left:3px solid var(--gold);padding:14px 18px;font-size:14px;color:var(--ink-lt);margin:18px 0}
+  .doc strong{font-weight:500;color:var(--dark)}
+  footer{background:var(--dark2);padding:34px 24px;text-align:center;border-top:1px solid rgba(201,150,59,.12)}
+  footer .om{font-size:22px;color:var(--gold);opacity:.5}
+  footer .row{margin-top:12px;font-size:12px;color:rgba(242,230,204,.4)}
+  footer a{color:var(--gold-lt)}
+  footer .links{margin-top:10px;display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+  footer .links a{font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <a href="/" class="logo"><span>ॐ</span> APPLY GITA WISDOM</a>
+  <a href="/signup" class="cta">Begin Free</a>
+</header>
+<main class="doc">
+  <p class="kicker">{% block kicker %}Legal{% endblock %}</p>
+  <h1>{% block heading %}{% endblock %}</h1>
+  <p class="updated">Last updated: 30 June 2026</p>
+  {% block content %}{% endblock %}
+  <div class="note">This document is provided for transparency and is not legal advice. Please have it reviewed by a qualified professional for your jurisdiction before relying on it.</div>
+</main>
+<footer>
+  <div class="om">ॐ</div>
+  <div class="links">
+    <a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/refund">Refund</a><a href="/shipping">Delivery</a><a href="/contact">Contact</a>
+  </div>
+  <div class="row">© 2026 Apply Gita Wisdom · A mentor by <a href="https://ganganarayandas.com/" target="_blank" rel="noopener">Ganga Narayan Das</a> · <a href="https://applygitawisdom.com/" target="_blank" rel="noopener">applygitawisdom.com</a></div>
+</footer>
+</body>
+</html>

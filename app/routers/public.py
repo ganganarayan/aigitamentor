@@ -37,6 +37,22 @@ def landing(request: Request):
     )
 
 
+# Policy / legal pages (linked from the footer). Explicit routes only — never a
+# catch-all, which would shadow /login, /signup, /app, /robots.txt, etc.
+def _legal(template: str):
+    def _render(request: Request):
+        return templates.TemplateResponse(template, {"request": request})
+
+    return _render
+
+
+router.add_api_route("/privacy", _legal("legal/privacy.html"), response_class=HTMLResponse, tags=["public"])
+router.add_api_route("/terms", _legal("legal/terms.html"), response_class=HTMLResponse, tags=["public"])
+router.add_api_route("/refund", _legal("legal/refund.html"), response_class=HTMLResponse, tags=["public"])
+router.add_api_route("/shipping", _legal("legal/shipping.html"), response_class=HTMLResponse, tags=["public"])
+router.add_api_route("/contact", _legal("legal/contact.html"), response_class=HTMLResponse, tags=["public"])
+
+
 @router.get("/robots.txt", response_class=PlainTextResponse)
 def robots() -> str:
     lines: list[str] = []
