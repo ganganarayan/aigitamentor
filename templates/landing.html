@@ -16,7 +16,7 @@
   :root {
     --saffron:#E8821A; --saffron-dk:#C4651A; --gold:#C9963B; --gold-lt:#F0C96A;
     --cream:#FAF3E8; --parchment:#F2E6CC; --dark:#2E1F0F; --dark2:#1C1410;
-    --ink:#3A2810; --ink-lt:#7A5C38;
+    --ink:#3A2810; --ink-lt:#9A6E2E;
   }
   *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
   html{scroll-behavior:smooth}
@@ -83,8 +83,8 @@
 
   /* INTRO */
   .intro-bg{background:var(--parchment);border-top:1px solid rgba(201,150,59,.2);border-bottom:1px solid rgba(201,150,59,.2)}
-  .intro-grid{display:grid;grid-template-columns:1fr 1fr;gap:72px;align-items:start}
-  .intro-q{font-family:'Cormorant Garamond',serif;font-size:clamp(20px,3.2vw,30px);font-weight:300;font-style:italic;line-height:1.55;color:var(--ink);border-left:2px solid var(--gold);padding-left:28px}
+  .intro-grid{display:grid;grid-template-columns:5fr 7fr;gap:56px;align-items:center}
+  .intro-q{font-family:'Cormorant Garamond',serif;font-size:clamp(21px,3vw,29px);font-weight:300;font-style:italic;line-height:1.6;color:var(--ink);border-left:2px solid var(--gold);padding-left:30px}
   .intro-q small{display:block;font-family:'Jost',sans-serif;font-size:11px;font-style:normal;letter-spacing:.18em;color:var(--ink-lt);margin-top:14px}
   .intro-t{font-size:16px;line-height:1.9;color:var(--ink)}.intro-t p+p{margin-top:16px}
   .intro-t em{font-style:italic;color:var(--saffron-dk)}
@@ -207,6 +207,9 @@
   .ft-copy a:hover{color:var(--gold)}
   .ft-bot-om{font-size:18px;color:var(--gold);opacity:.4}
 
+  /* Rounded buttons to match the opt-in (sign-in/up) pages */
+  .nav-cta,.btn-sf,.btn-ol,.tbtn{border-radius:999px}
+
   /* REVEAL */
   .reveal{opacity:0;transform:translateY(22px);transition:opacity .7s ease,transform .7s ease}
   .reveal.visible{opacity:1;transform:none}
@@ -276,7 +279,7 @@
     <p class="hero-eye">Ancient Wisdom · Modern Application</p>
     <h1 class="hero-title">Apply <em>Gita</em><br>Wisdom</h1>
     <div class="hero-rule"></div>
-    <p class="hero-sub">A generic AI explains the Gita. This mentor <em>diagnoses</em> — it names the exact mechanism behind what you're facing, gives you one precise step, and remembers your journey. In the voice of Ganga Narayan Das.</p>
+    <p class="hero-sub">Not Gita commentary — <em>diagnosis</em>. This mentor names the exact mechanism behind what you're facing, gives you one precise step, and remembers your journey. <em>In the voice of Ganga Narayan Das.</em></p>
     <div class="hero-btns">
       <a href="{{ app_url }}/signup" class="btn-sf">Try Free AI Mentor</a>
       <a href="#how" class="btn-ol">See How It Works</a>
@@ -343,13 +346,13 @@
       </div>
       <div class="pillar reveal" style="transition-delay:.16s">
         <span class="pillar-n">III</span>
-        <div class="pillar-lbl">Bhakti Yoga</div><div class="pillar-ttl">The path of devotion</div>
-        <p class="pillar-bod">For the one who loves deeply but loses themselves in it. The Gita teaches how devotion, rightly directed, becomes the most powerful force for inner freedom.</p>
+        <div class="pillar-lbl">Dhyana Yoga</div><div class="pillar-ttl">The path of meditation</div>
+        <p class="pillar-bod">For the one who senses something vast beneath the noise of their mind. The Gita offers a precise science of attention, stillness, and sovereign inner life.</p>
       </div>
       <div class="pillar reveal" style="transition-delay:.24s">
         <span class="pillar-n">IV</span>
-        <div class="pillar-lbl">Raja Yoga</div><div class="pillar-ttl">The path of inner mastery</div>
-        <p class="pillar-bod">For the one who senses something vast beneath the noise of their mind. The Gita offers a precise science of attention, stillness, and sovereign inner life.</p>
+        <div class="pillar-lbl">Bhakti Yoga</div><div class="pillar-ttl">The path of devotion</div>
+        <p class="pillar-bod">For the one who loves deeply but loses themselves in it. The Gita teaches how devotion, rightly directed, becomes the most powerful force for inner freedom.</p>
       </div>
     </div>
   </div>
@@ -497,7 +500,7 @@
 <section class="close-bg">
   <span class="close-om">ॐ</span>
   <h2 class="close-ttl reveal">The teaching is<br>already <em>inside you.</em></h2>
-  <p class="close-sub reveal">The mentor simply helps you hear it.</p>
+  <p class="close-sub reveal">The mentor simply helps unravel it.</p>
   <a href="{{ app_url }}/signup" class="btn-sf reveal" style="position:relative;z-index:1">Begin as Seeker — Free</a>
 </section>
 
