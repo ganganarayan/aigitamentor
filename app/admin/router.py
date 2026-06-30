@@ -133,6 +133,15 @@ def recorder_list(request: Request, user: User = Depends(require_admin), db: Ses
     questions = list(
         db.execute(select(Question).order_by(Question.q_number.nulls_last())).scalars()
     )
+    # Which tiers already have a published answer, per question (drives the ticks).
+    done: dict[int, list[str]] = {}
+    pairs = db.execute(
+        select(KbAnswer.question_id, KbAnswer.tier)
+        .where(KbAnswer.status == "published", KbAnswer.question_id.is_not(None))
+        .distinct()
+    ).all()
+    for qid, tier in pairs:
+        done.setdefault(qid, []).append(tier)
     total = 160
     return templates.TemplateResponse(
         "admin/recorder_list.html",
@@ -142,6 +151,7 @@ def recorder_list(request: Request, user: User = Depends(require_admin), db: Ses
             "questions": questions,
             "total": total,
             "tiers": list(TIER_RANK.keys()),
+            "done_tiers": done,
         },
     )
 
