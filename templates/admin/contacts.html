@@ -1,0 +1,24 @@
+{% extends "admin/base.html" %}
+{% block title %}Contacts · Knowledge Studio{% endblock %}
+{% block body %}
+<h1>Contacts</h1>
+<p style="opacity:.7;font-size:14px;margin-top:-6px">Acquisition records — UTM and AI-referral source per lead. Capture is wired in the public-KB / analytics phase.</p>
+{% if rows %}
+<table>
+  <thead><tr><th style="width:46px">#</th><th>Email</th><th>Name</th><th style="width:120px">AI source</th><th>UTM source</th><th style="width:90px">Tier</th><th style="width:80px">Signed up</th></tr></thead>
+  <tbody>
+  {% for c in rows %}
+    <tr>
+      <td>{{ c.id }}</td>
+      <td>{{ c.email or '—' }}</td>
+      <td>{{ c.name or '—' }}</td>
+      <td>{{ c.referral_ai_source or '—' }}</td>
+      <td>{{ c.utm_source or '—' }}</td>
+      <td>{{ c.subscribed_tier or '—' }}</td>
+      <td>{{ '✓' if c.signed_up else '—' }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<div class="card"><p>No contacts captured yet.</p></div>{% endif %}
+{% endblock %}

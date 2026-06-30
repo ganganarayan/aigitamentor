@@ -1,0 +1,33 @@
+{% extends "admin/base.html" %}
+{% block title %}Revenue · Knowledge Studio{% endblock %}
+{% block styles %}
+  .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-bottom:24px}
+  .stat{background:#fff;border:1px solid rgba(201,150,59,.25);border-radius:12px;padding:18px}
+  .stat .n{font-size:28px;font-weight:700;color:var(--dark)}.stat .l{font-size:13px;opacity:.7}
+{% endblock %}
+{% block body %}
+<h1>Revenue</h1>
+<div class="grid">
+  <div class="stat"><div class="n">₹{{ '{:,.0f}'.format(mrr) }}</div><div class="l">Est. MRR</div></div>
+  <div class="stat"><div class="n">{{ active_by_tier.abhyasi }}</div><div class="l">Active Abhyāsi</div></div>
+  <div class="stat"><div class="n">{{ active_by_tier.sadhaka }}</div><div class="l">Active Sādhaka</div></div>
+  <div class="stat"><div class="n">₹{{ '{:,.0f}'.format(total_paid) }}</div><div class="l">Total collected</div></div>
+</div>
+<h3 style="margin-bottom:10px">Recent payments</h3>
+{% if rows %}
+<table>
+  <thead><tr><th style="width:50px">#</th><th>User</th><th style="width:110px">Amount</th><th style="width:110px">Status</th><th>Razorpay payment</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>{{ r.pay.id }}</td>
+      <td>{{ r.email }}</td>
+      <td>₹{{ '{:,.0f}'.format(r.pay.amount or 0) }} {{ r.pay.currency }}</td>
+      <td><span class="pill {{ 'ok' if r.pay.status in ['captured','paid'] else 'warn' }}">{{ r.pay.status }}</span></td>
+      <td style="font-size:12px">{{ r.pay.razorpay_payment_id or '—' }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<div class="card"><p>No payments yet. They'll appear here once subscriptions are charged.</p></div>{% endif %}
+{% endblock %}

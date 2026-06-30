@@ -1,0 +1,25 @@
+{% extends "admin/base.html" %}
+{% block title %}AI Config · Knowledge Studio{% endblock %}
+{% block styles %}
+  textarea{width:100%;min-height:440px;padding:13px 15px;border:1px solid rgba(58,40,16,.2);border-radius:8px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.6;resize:vertical}
+  .meta{font-size:13px;opacity:.75;margin-bottom:14px}
+  .row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:12px}
+  .vers{font-size:13px;margin-top:18px;opacity:.7}
+{% endblock %}
+{% block body %}
+<h1>AI Config — system prompt</h1>
+<p class="meta">
+  {% if using_default %}Currently using the <strong>built-in default</strong> prompt. Saving creates version 1 and activates it.
+  {% else %}Active: <strong>version {{ active.version }}</strong>. Saving creates a new version and activates it (old versions are kept).{% endif %}
+</p>
+<form method="post" action="/admin/ai-config">
+  <textarea name="system_prompt">{{ prompt }}</textarea>
+  <div class="row">
+    <span><label style="display:inline">Temperature</label> <input name="temperature" value="{{ active.temperature if active else 0.7 }}" style="width:70px"></span>
+    <span><label style="display:inline">Top-k</label> <input name="top_k" value="{{ active.top_k if active else 8 }}" style="width:70px"></span>
+    <button class="btn" type="submit">Save &amp; activate new version</button>
+  </div>
+</form>
+<p style="font-size:12px;opacity:.6;margin-top:10px">Runtime variables in {curly braces} — {user_name}, {user_age}, {user_profession}, {user_gender}, {user_tier}, {assessment_band}, {retrieved_context}, {conversation_memory} — are filled per turn. Keep them intact.</p>
+{% if versions %}<div class="vers">Versions: {% for v in versions %}{{ v.version }}{% if v.active %} (active){% endif %}{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
+{% endblock %}

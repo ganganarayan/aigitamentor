@@ -1,0 +1,23 @@
+{% extends "admin/base.html" %}
+{% block title %}Conversations · Knowledge Studio{% endblock %}
+{% block body %}
+<h1>Conversations</h1>
+<p style="opacity:.7;font-size:14px;margin-top:-6px">Read-only oversight of mentor conversations.</p>
+{% if rows %}
+<table>
+  <thead><tr><th style="width:50px">#</th><th>User</th><th>Title</th><th style="width:90px">Messages</th><th style="width:130px">Updated</th><th style="width:70px"></th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>{{ r.conv.id }}</td>
+      <td>{{ r.email }}</td>
+      <td>{{ r.conv.title or '—' }}</td>
+      <td>{{ r.count }}</td>
+      <td>{{ r.conv.updated_at.strftime('%d %b %H:%M') if r.conv.updated_at else '—' }}</td>
+      <td><a class="btn secondary" href="/admin/conversations/{{ r.conv.id }}">View</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<div class="card"><p>No conversations yet.</p></div>{% endif %}
+{% endblock %}

@@ -20,6 +20,7 @@ from app import __version__
 from app.admin import router as admin_router
 from app.auth import router as auth_router
 from app.auth.deps import RedirectToLogin
+from app.billing import router as billing_router
 from app.config import settings
 from app.db import startup_db_check
 from app.mentor import router as mentor_router
@@ -102,4 +103,5 @@ app.include_router(health.router)
 app.include_router(public.router)
 app.include_router(auth_router.router)
 app.include_router(mentor_router.router)
+app.include_router(billing_router.router)
 app.include_router(admin_router.router)

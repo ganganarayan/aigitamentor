@@ -70,6 +70,13 @@ class Settings(BaseSettings):
     razorpay_key_id: str | None = Field(default=None, alias="RAZORPAY_KEY_ID")
     razorpay_key_secret: str | None = Field(default=None, alias="RAZORPAY_KEY_SECRET")
     razorpay_webhook_secret: str | None = Field(default=None, alias="RAZORPAY_WEBHOOK_SECRET")
+    # Razorpay subscription plan ids (created in the Razorpay dashboard).
+    razorpay_plan_abhyasi: str | None = Field(default=None, alias="RAZORPAY_PLAN_ABHYASI")
+    razorpay_plan_sadhaka: str | None = Field(default=None, alias="RAZORPAY_PLAN_SADHAKA")
+
+    @property
+    def razorpay_enabled(self) -> bool:
+        return bool(self.razorpay_key_id and self.razorpay_key_secret)
 
     # --- Analytics (Meta) ---
     meta_pixel_id: str | None = Field(default=None, alias="META_PIXEL_ID")

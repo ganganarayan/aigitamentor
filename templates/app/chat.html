@@ -86,7 +86,7 @@
       <span class="om">ॐ</span>
       <span class="t">Your Mentor</span>
       <span class="sp"></span>
-      {% if user.tier == 'seeker' %}<a href="/#pricing" style="font-size:12px;color:var(--saffron-dk);text-decoration:none">Unlock memory → Abhyāsi</a>{% endif %}
+      {% if user.tier != 'sadhaka' %}<a href="/app/upgrade" style="font-size:12px;color:var(--saffron-dk);text-decoration:none">{% if user.tier == 'seeker' %}Unlock memory → Abhyāsi{% else %}Go deeper → Sādhaka{% endif %}</a>{% endif %}
     </div>
 
     <div class="thread" id="thread">

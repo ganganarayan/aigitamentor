@@ -19,17 +19,24 @@ from sqlalchemy.orm import Session
 from app.auth.deps import require_admin
 from app.db import get_db
 from app.models import (
+    AiConfig,
+    Contact,
+    Conversation,
     KbAnswer,
     KbChunk,
     KbSource,
     LlmBaseline,
+    Message,
+    Payment,
     Question,
     Recording,
+    Subscription,
     User,
     Verse,
 )
 from app.models.corpus import TIER_RANK
 from app.services import ai_settings
+from app.services import chat as chat_service
 from app.services import ingestion
 from app.services import llm_baselines
 from app.services import recordings as rec_service
@@ -515,3 +522,129 @@ def settings_save(
         key_clears=key_clears,
     )
     return RedirectResponse("/admin/settings", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# --- AI Config (versioned system prompt) -----------------------------------
+
+@router.get("/ai-config", response_class=HTMLResponse)
+def ai_config_page(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    active = db.execute(
+        select(AiConfig).where(AiConfig.active.is_(True)).order_by(AiConfig.version.desc())
+    ).scalars().first()
+    versions = db.execute(select(AiConfig).order_by(AiConfig.version.desc()).limit(20)).scalars().all()
+    return templates.TemplateResponse(
+        "admin/ai_config.html",
+        {
+            "request": request,
+            "user": user,
+            "prompt": active.system_prompt if active else chat_service.DEFAULT_SYSTEM_PROMPT,
+            "active": active,
+            "using_default": active is None,
+            "versions": versions,
+        },
+    )
+
+
+@router.post("/ai-config")
+def ai_config_save(
+    system_prompt: str = Form(...),
+    temperature: str = Form("0.7"),
+    top_k: str = Form("8"),
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    try:
+        temp = float(temperature)
+    except ValueError:
+        temp = 0.7
+    try:
+        topk = int(top_k)
+    except ValueError:
+        topk = 8
+    next_version = (db.execute(select(func.coalesce(func.max(AiConfig.version), 0))).scalar_one()) + 1
+    for cfg in db.execute(select(AiConfig).where(AiConfig.active.is_(True))).scalars():
+        cfg.active = False
+    db.add(
+        AiConfig(
+            version=next_version,
+            system_prompt=system_prompt,
+            temperature=temp,
+            top_k=topk,
+            active=True,
+        )
+    )
+    db.commit()
+    return RedirectResponse("/admin/ai-config", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# --- Conversations (oversight / safety) ------------------------------------
+
+@router.get("/conversations", response_class=HTMLResponse)
+def conversations_list(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    convs = list(
+        db.execute(select(Conversation).order_by(Conversation.updated_at.desc()).limit(100)).scalars()
+    )
+    rows = []
+    for c in convs:
+        owner = db.get(User, c.user_id)
+        count = db.execute(
+            select(func.count()).select_from(Message).where(Message.conversation_id == c.id)
+        ).scalar_one()
+        rows.append({"conv": c, "email": owner.email if owner else "—", "count": count})
+    return templates.TemplateResponse(
+        "admin/conversations.html", {"request": request, "user": user, "rows": rows}
+    )
+
+
+@router.get("/conversations/{conv_id}", response_class=HTMLResponse)
+def conversation_view(
+    request: Request, conv_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)
+):
+    conv = db.get(Conversation, conv_id)
+    if conv is None:
+        return RedirectResponse("/admin/conversations", status_code=status.HTTP_303_SEE_OTHER)
+    msgs = list(
+        db.execute(select(Message).where(Message.conversation_id == conv_id).order_by(Message.id)).scalars()
+    )
+    return templates.TemplateResponse(
+        "admin/conversation.html",
+        {"request": request, "user": user, "conv": conv, "messages": msgs, "owner": db.get(User, conv.user_id)},
+    )
+
+
+# --- Revenue ----------------------------------------------------------------
+
+@router.get("/revenue", response_class=HTMLResponse)
+def revenue_page(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    active_by_tier = {}
+    for tier in ("abhyasi", "sadhaka"):
+        active_by_tier[tier] = db.execute(
+            select(func.count()).select_from(Subscription).where(
+                Subscription.tier == tier, Subscription.status == "active"
+            )
+        ).scalar_one()
+    mrr = active_by_tier["abhyasi"] * 499 + active_by_tier["sadhaka"] * 1459
+    total_paid = db.execute(select(func.coalesce(func.sum(Payment.amount), 0))).scalar_one()
+    pays = list(db.execute(select(Payment).order_by(Payment.id.desc()).limit(50)).scalars())
+    rows = [{"pay": p, "email": (db.get(User, p.user_id).email if db.get(User, p.user_id) else "—")} for p in pays]
+    return templates.TemplateResponse(
+        "admin/revenue.html",
+        {
+            "request": request,
+            "user": user,
+            "active_by_tier": active_by_tier,
+            "mrr": mrr,
+            "total_paid": total_paid,
+            "rows": rows,
+        },
+    )
+
+
+# --- Contacts ---------------------------------------------------------------
+
+@router.get("/contacts", response_class=HTMLResponse)
+def contacts_page(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    rows = list(db.execute(select(Contact).order_by(Contact.id.desc()).limit(300)).scalars())
+    return templates.TemplateResponse(
+        "admin/contacts.html", {"request": request, "user": user, "rows": rows}
+    )

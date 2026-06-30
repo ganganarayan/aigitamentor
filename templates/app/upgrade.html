@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Deepen your practice · AI Gita Mentor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@500;600&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--saffron:#E8821A;--saffron-dk:#C4651A;--gold:#C9963B;--gold-lt:#F0C96A;--cream:#FAF3E8;--parchment:#F2E6CC;--dark:#2E1F0F;--ink:#3A2810;--ink-lt:#7A5C38}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Jost',sans-serif;font-weight:300;color:var(--ink);background:var(--cream)}
+  .top{display:flex;align-items:center;gap:12px;padding:14px 22px;border-bottom:1px solid rgba(201,150,59,.25)}
+  .top .om{font-size:22px;color:var(--gold)}.top .sp{flex:1}
+  .top a{font-size:14px;color:var(--saffron-dk);text-decoration:none}
+  .wrap{max-width:880px;margin:0 auto;padding:48px 22px 80px;text-align:center}
+  h1{font-family:'Cormorant Garamond',serif;font-weight:400;font-size:clamp(30px,5vw,46px);color:var(--dark)}
+  .sub{color:var(--ink-lt);margin:8px 0 32px}
+  .err{background:#fdecea;color:#8a1c12;border-radius:10px;padding:11px 14px;margin:0 auto 22px;max-width:560px;font-size:14px}
+  .note{background:var(--parchment);border-radius:10px;padding:12px 16px;margin:0 auto 22px;max-width:560px;font-size:13px;color:var(--ink-lt)}
+  .plans{display:grid;gap:18px;grid-template-columns:1fr 1fr;margin-top:8px}
+  @media(max-width:680px){.plans{grid-template-columns:1fr}}
+  .plan{background:#fff;border:1px solid rgba(201,150,59,.3);border-radius:16px;padding:30px 26px;text-align:left;display:flex;flex-direction:column}
+  .plan.feat{border-color:var(--saffron);box-shadow:0 10px 30px rgba(232,130,26,.12)}
+  .plan .name{font-family:'Cinzel',serif;font-size:13px;letter-spacing:.18em;color:var(--saffron);text-transform:uppercase}
+  .plan .price{font-family:'Cormorant Garamond',serif;font-size:46px;color:var(--dark);margin:10px 0 2px}
+  .plan .price small{font-size:15px;color:var(--ink-lt)}
+  .plan ul{list-style:none;margin:18px 0 24px}
+  .plan li{font-size:14px;padding:7px 0;border-bottom:1px solid rgba(201,150,59,.12);display:flex;gap:9px}
+  .plan li::before{content:'—';color:var(--gold)}
+  .btn{display:block;text-align:center;padding:14px;border:none;border-radius:999px;background:var(--saffron);color:#fff;font-family:'Cinzel',serif;letter-spacing:.06em;font-size:13px;cursor:pointer;text-decoration:none;width:100%}
+  .btn:hover{background:var(--saffron-dk)}
+  .btn.ghost{background:#fff;color:var(--ink);border:1px solid rgba(58,40,16,.25)}
+  .current{margin-top:14px;font-size:13px;color:#1c6b2e}
+  .cancel{display:inline-block;margin-top:26px;font-size:13px;color:var(--ink-lt);background:none;border:none;cursor:pointer;text-decoration:underline}
+  .disc{font-size:12px;color:var(--ink-lt);opacity:.7;margin-top:28px}
+</style>
+</head>
+<body>
+<div class="top">
+  <span class="om">ॐ</span><a href="/app">← Back to your mentor</a>
+  <span class="sp"></span>
+  <span style="font-size:12px;background:var(--parchment);border-radius:999px;padding:4px 12px;text-transform:capitalize">{{ user.tier }}</span>
+</div>
+<div class="wrap">
+  <h1>Continue what you've begun</h1>
+  <p class="sub">Recognition is free. <em>Continuity</em> — memory of your journey, the full working practice — begins here.</p>
+
+  {% if error %}<div class="err">{{ error }}</div>{% endif %}
+  {% if not razorpay_enabled %}
+    <div class="note">Subscriptions aren't switched on yet. Please check back shortly — your free practice continues in the meantime.</div>
+  {% endif %}
+
+  <div class="plans">
+    <div class="plan">
+      <div class="name">Abhyāsi</div>
+      <div class="price">₹{{ prices.abhyasi }}<small> / month</small></div>
+      <ul>
+        <li>Unlimited conversations</li>
+        <li>Full working practice for your domain</li>
+        <li>Memory across sessions — it remembers where you are</li>
+        <li>Monthly practice reflection</li>
+      </ul>
+      {% if user.tier == 'abhyasi' %}
+        <div class="current">✓ Your current plan</div>
+      {% else %}
+        <form method="post" action="/billing/subscribe"><input type="hidden" name="tier" value="abhyasi">
+          <button class="btn ghost" type="submit" {% if not razorpay_enabled %}disabled{% endif %}>Begin Abhyāsi</button>
+        </form>
+      {% endif %}
+    </div>
+
+    <div class="plan feat">
+      <div class="name">Sādhaka</div>
+      <div class="price">₹{{ prices.sadhaka }}<small> / month</small></div>
+      <ul>
+        <li>Everything in Abhyāsi</li>
+        <li>The deepest level of the protocol</li>
+        <li>Prescribed video library</li>
+        <li>Monthly reflection (PDF) · bridge to a personal session</li>
+      </ul>
+      {% if user.tier == 'sadhaka' %}
+        <div class="current">✓ Your current plan</div>
+      {% else %}
+        <form method="post" action="/billing/subscribe"><input type="hidden" name="tier" value="sadhaka">
+          <button class="btn" type="submit" {% if not razorpay_enabled %}disabled{% endif %}>Begin Sādhaka</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if active_sub %}
+    <form method="post" action="/billing/cancel" onsubmit="return confirm('Cancel your subscription? You will return to the free tier.')">
+      <button class="cancel" type="submit">Cancel subscription</button>
+    </form>
+  {% endif %}
+
+  <p class="disc">Billed monthly via Razorpay · cancel anytime · prices in INR. The app never stores your card details.</p>
+</div>
+</body>
+</html>
