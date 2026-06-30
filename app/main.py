@@ -56,24 +56,38 @@ STATIC_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # Host split: marketing/KB on the public host (`ai.`), auth + gated app on
-# `app.`. Any gated path hit on the public host is redirected to the same path
-# on the app host, so authentication (incl. Google OAuth) only ever runs on
-# `app.`. No-op when APP_URL is unset (single-host local dev).
+# `app.`. They are one service on two hosts; this router keeps each host to its
+# job. No-op when APP_URL is unset (single-host local dev).
+#   - public host (ai.): gated paths      -> same path on app host
+#   - app host   (app.): marketing root   -> /app (the product, not the landing)
+#                        legal/marketing  -> same path on the public host
 _PUBLIC_HOST = (urlparse(settings.app_base_url).hostname or "").lower()
+_APP_HOST = (urlparse(settings.app_url).hostname or "").lower() if settings.app_url else ""
 _GATED_PREFIXES = ("/app", "/admin", "/login", "/signup", "/logout", "/me", "/auth", "/api")
+_PUBLIC_PATHS = ("/privacy", "/terms", "/refund", "/shipping", "/contact")
+
+
+def _with_query(base: str, request: Request) -> str:
+    return base + (("?" + request.url.query) if request.url.query else "")
 
 
 @app.middleware("http")
-async def public_to_app_redirect(request: Request, call_next):
+async def host_router(request: Request, call_next):
     if settings.app_url and _PUBLIC_HOST:
         host = (request.headers.get("host") or "").split(":")[0].lower()
+        path = request.url.path
         if host == _PUBLIC_HOST:
-            path = request.url.path
+            # Gated path on the public host → bounce to the app host.
             if any(path == p or path.startswith(p + "/") for p in _GATED_PREFIXES):
-                target = settings.app_url.rstrip("/") + path
-                if request.url.query:
-                    target += "?" + request.url.query
-                return RedirectResponse(target, status_code=308)
+                return RedirectResponse(
+                    _with_query(settings.app_url.rstrip("/") + path, request), status_code=308
+                )
+        elif _APP_HOST and host == _APP_HOST:
+            # The app host is the product, not the marketing site.
+            if path == "/":
+                return RedirectResponse("/app", status_code=307)
+            if path in _PUBLIC_PATHS:
+                return RedirectResponse(settings.app_base_url.rstrip("/") + path, status_code=308)
     return await call_next(request)
 
 
