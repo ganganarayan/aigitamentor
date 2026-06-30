@@ -22,7 +22,12 @@ class Settings(BaseSettings):
 
     # --- App ---
     app_name: str = "AI Gita Mentor"
+    # Public marketing/KB origin (the `ai.` host) — used for sitemap/canonical and
+    # to know which host should redirect gated paths to the app.
     app_base_url: str = Field(default="http://localhost:8000", alias="APP_BASE_URL")
+    # Gated app origin (the `app.` host) — where auth, /app, /admin live. CTAs on
+    # the public site point here. Empty = single-host (local dev): no redirects.
+    app_url: str = Field(default="", alias="APP_URL")
     environment: str = Field(default="development", alias="ENVIRONMENT")
     debug: bool = Field(default=False, alias="DEBUG")
 

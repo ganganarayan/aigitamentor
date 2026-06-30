@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
@@ -53,6 +54,28 @@ app = FastAPI(
 # Static assets (created lazily so a missing dir never breaks boot).
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+# Host split: marketing/KB on the public host (`ai.`), auth + gated app on
+# `app.`. Any gated path hit on the public host is redirected to the same path
+# on the app host, so authentication (incl. Google OAuth) only ever runs on
+# `app.`. No-op when APP_URL is unset (single-host local dev).
+_PUBLIC_HOST = (urlparse(settings.app_base_url).hostname or "").lower()
+_GATED_PREFIXES = ("/app", "/admin", "/login", "/signup", "/logout", "/me", "/auth", "/api")
+
+
+@app.middleware("http")
+async def public_to_app_redirect(request: Request, call_next):
+    if settings.app_url and _PUBLIC_HOST:
+        host = (request.headers.get("host") or "").split(":")[0].lower()
+        if host == _PUBLIC_HOST:
+            path = request.url.path
+            if any(path == p or path.startswith(p + "/") for p in _GATED_PREFIXES):
+                target = settings.app_url.rstrip("/") + path
+                if request.url.query:
+                    target += "?" + request.url.query
+                return RedirectResponse(target, status_code=308)
+    return await call_next(request)
+
 
 # Bounce unauthenticated browsers to the login page (preserving the target).
 @app.exception_handler(RedirectToLogin)
