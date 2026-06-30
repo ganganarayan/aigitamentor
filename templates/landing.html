@@ -172,13 +172,14 @@
   /* MENTOR */
   .mentor-bg{background:var(--cream)}
   .mentor-grid{display:grid;grid-template-columns:1fr 2fr;gap:80px;align-items:start}
-  .mentor-emb{aspect-ratio:1;background:var(--dark);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;border:1px solid rgba(201,150,59,.3)}
+  .mentor-emb{aspect-ratio:4/5;background:var(--dark);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;border:1px solid rgba(201,150,59,.3);position:relative;overflow:hidden}
+  .mentor-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 22%}
   .mentor-emb-om{font-size:72px;color:var(--gold);animation:omglow 4s ease-in-out infinite alternate}
   .mentor-emb-txt{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.25em;color:rgba(242,230,204,.35)}
   .mentor-creds{list-style:none;margin-top:24px}
-  .mentor-creds li{font-size:14px;color:var(--ink-lt);padding:10px 0;border-bottom:1px solid rgba(201,150,59,.15);display:flex;gap:12px;align-items:flex-start}
-  .mentor-creds li::before{content:'✦';color:var(--gold);font-size:10px;flex-shrink:0;margin-top:3px}
-  .mentor-creds strong{color:var(--ink);font-weight:500}
+  .mentor-creds li{font-size:14.5px;line-height:1.75;color:var(--ink-lt);padding:13px 0;border-bottom:1px solid rgba(201,150,59,.15);display:flex;gap:13px;align-items:flex-start}
+  .mentor-creds li::before{content:'✦';color:var(--gold);font-size:11px;flex-shrink:0;margin-top:5px}
+  .mentor-creds strong{color:var(--ink);font-weight:600}
   .mentor-sig{margin-top:32px;font-family:'Cormorant Garamond',serif;font-size:22px;font-style:italic;color:var(--ink)}
   .mentor-sig small{display:block;font-family:'Jost',sans-serif;font-size:11px;font-style:normal;letter-spacing:.15em;color:var(--ink-lt);margin-top:4px}
 
@@ -476,17 +477,20 @@
   <div class="wrap">
     <div class="mentor-grid">
       <div class="reveal">
-        <div class="mentor-emb"><span class="mentor-emb-om">ॐ</span><span class="mentor-emb-txt">GANGA NARAYAN DAS</span></div>
+        <div class="mentor-emb">
+          <img class="mentor-photo" src="/static/gnd.jpg" alt="Ganga Narayan Das" onerror="this.style.display='none'">
+          <span class="mentor-emb-om">ॐ</span><span class="mentor-emb-txt">GANGA NARAYAN DAS</span>
+        </div>
       </div>
       <div class="reveal" style="transition-delay:.12s">
         <p class="lbl">The Voice Behind the Mentor</p>
         <h2 class="ttl">A monk who never<br><em>left the world.</em></h2>
         <p class="bod" style="margin-bottom:24px">The wisdom in this mentor comes from Ganga Narayan Das — who read the Gita not as scripture to be studied, but as an engineering manual to be applied, tested under full corporate load for years before and after becoming a monk.</p>
         <ul class="mentor-creds">
-          <li><strong>Ceramic Engineer (NIT Rourkela)</strong> and founder of the <strong>Neuro-Acoustic Protocol</strong> — the framework this mentor speaks from.</li>
-          <li>Practitioner since 2003; tested the protocol on himself under full corporate load (2003–2008), then <strong>a monk since April 2008</strong> — 17 years in demanding environments, not an ashram.</li>
-          <li>Implemented across <strong>KPMG, NPCIL, Tata Steel, PwC, HDFC leaders, and UNEA 4 &amp; 6</strong> (Nairobi).</li>
-          <li>The programme is <strong>Sthira</strong>; the mission, the <strong>Unshakeable Generation</strong>.</li>
+          <li><strong>Engineer turned monk.</strong> Ceramic Engineer (NIT Rourkela) and founder of the Neuro-Acoustic Protocol — the framework this mentor speaks from.</li>
+          <li><strong>17 years in the field.</strong> Practitioner since 2003; tested the protocol under full corporate load (2003–2008), then a monk since April 2008 — in demanding environments, not an ashram.</li>
+          <li><strong>Proven across domains.</strong> Implemented at KPMG, NPCIL, Tata Steel, PwC, HDFC leaders, and UNEA 4 &amp; 6 (Nairobi).</li>
+          <li><strong>The mission.</strong> The programme is Sthira; the aim, the Unshakeable Generation.</li>
         </ul>
         <div class="mentor-sig">Ganga Narayan Das<small>Founder · Apply Gita Wisdom</small></div>
       </div>
