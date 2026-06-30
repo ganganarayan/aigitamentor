@@ -13,7 +13,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.auth.deps import require_admin
@@ -323,6 +323,100 @@ def publish_recording(
 def run_seed(user: User = Depends(require_admin), db: Session = Depends(get_db)):
     seed_starter(db)
     return RedirectResponse("/admin/recorder", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# --- Answers — view & edit saved/transcribed answers -----------------------
+
+_STATUSES = ["draft", "reviewed", "published"]
+
+
+@router.get("/answers", response_class=HTMLResponse)
+def answers_list(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    answers = list(db.execute(select(KbAnswer).order_by(KbAnswer.id.desc())).scalars())
+    rows = []
+    for a in answers:
+        rows.append(
+            {
+                "answer": a,
+                "question": db.get(Question, a.question_id) if a.question_id else None,
+                "source": db.get(KbSource, a.source_id) if a.source_id else None,
+                "chunks": ingestion.chunk_count_for(db, a.id),
+            }
+        )
+    return templates.TemplateResponse(
+        "admin/answers.html", {"request": request, "user": user, "rows": rows}
+    )
+
+
+@router.get("/answers/{answer_id}/edit", response_class=HTMLResponse)
+def answer_edit_page(
+    request: Request,
+    answer_id: int,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    answer = db.get(KbAnswer, answer_id)
+    if answer is None:
+        return RedirectResponse("/admin/answers", status_code=status.HTTP_303_SEE_OTHER)
+    return templates.TemplateResponse(
+        "admin/answer_edit.html",
+        {
+            "request": request,
+            "user": user,
+            "answer": answer,
+            "question": db.get(Question, answer.question_id) if answer.question_id else None,
+            "source": db.get(KbSource, answer.source_id) if answer.source_id else None,
+            "tiers": list(TIER_RANK.keys()),
+            "statuses": _STATUSES,
+            "chunks": ingestion.chunk_count_for(db, answer.id),
+        },
+    )
+
+
+@router.post("/answers/{answer_id}/edit")
+def answer_edit_save(
+    answer_id: int,
+    background: BackgroundTasks,
+    text: str = Form(...),
+    tier: str = Form("seeker"),
+    answer_status: str = Form("published"),
+    reingest: str = Form(""),
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    answer = db.get(KbAnswer, answer_id)
+    if answer is None:
+        return RedirectResponse("/admin/answers", status_code=status.HTTP_303_SEE_OTHER)
+    if tier not in TIER_RANK:
+        tier = "seeker"
+    if answer_status not in _STATUSES:
+        answer_status = "published"
+    answer.answer_final = (text or "").strip()
+    answer.transcript_edited = answer.answer_final
+    answer.tier = tier
+    answer.status = answer_status
+    answer.version = (answer.version or 1) + 1
+    db.commit()
+    # Keep the gated corpus consistent: only published answers stay vectorized.
+    if answer_status != "published":
+        db.execute(delete(KbChunk).where(KbChunk.answer_id == answer.id))
+        db.commit()
+    elif reingest:
+        background.add_task(ingestion.ingest_answer_by_id, answer.id)
+    return RedirectResponse("/admin/answers", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/answers/{answer_id}/delete")
+def answer_delete(
+    answer_id: int,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    answer = db.get(KbAnswer, answer_id)
+    if answer is not None:
+        db.delete(answer)  # kb_chunks cascade via FK
+        db.commit()
+    return RedirectResponse("/admin/answers", status_code=status.HTTP_303_SEE_OTHER)
 
 
 # --- Embeddings / ingestion (Phase 3) --------------------------------------

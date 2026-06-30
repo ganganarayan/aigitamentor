@@ -1,0 +1,50 @@
+{% extends "admin/base.html" %}
+{% block title %}Edit answer #{{ answer.id }} · Knowledge Studio{% endblock %}
+
+{% block styles %}
+  .meta { opacity:.7; font-size:13px; margin-bottom:14px; }
+  .panel { background:#fff; border:1px solid rgba(201,150,59,.25); border-radius:12px; padding:18px; margin-bottom:16px; }
+  textarea.answer { width:100%; min-height:300px; padding:12px 14px; border:1px solid rgba(58,40,16,.2); border-radius:8px; font:inherit; line-height:1.6; resize:vertical; }
+  .controls { display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-top:12px; }
+  .raw { white-space:pre-wrap; font-size:13px; background:#FBF7EF; border-radius:8px; padding:12px; max-height:200px; overflow:auto; }
+  .chk { display:inline-flex; align-items:center; gap:6px; font-size:13px; }
+{% endblock %}
+
+{% block body %}
+<p><a href="/admin/answers">← All answers</a></p>
+<h1>Edit answer #{{ answer.id }}</h1>
+<p class="meta">
+  Question: {{ question.question_text if question else '—' }}
+  · Source: {{ 'typed' if source and source.type == 'manual' else (source.type if source else '—') }}
+  · {{ chunks }} chunk(s) · version {{ answer.version }}
+</p>
+
+<form method="post" action="/admin/answers/{{ answer.id }}/edit">
+  <div class="panel">
+    <h3 style="margin-top:0">Answer text</h3>
+    <textarea class="answer" name="text">{{ answer.answer_final or answer.transcript_edited or answer.transcript_raw or '' }}</textarea>
+    <div class="controls">
+      <span><label style="display:inline">Tier</label>
+        <select name="tier">{% for t in tiers %}<option value="{{ t }}" {% if t == answer.tier %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+      </span>
+      <span><label style="display:inline">Status</label>
+        <select name="answer_status">{% for s in statuses %}<option value="{{ s }}" {% if s == answer.status %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+      </span>
+      <label class="chk"><input type="checkbox" name="reingest" value="1" checked /> re-embed after saving</label>
+      <button class="btn" type="submit">Save answer</button>
+    </div>
+    <p style="font-size:12px;opacity:.6;margin-bottom:0">Published + re-embed → chunks are regenerated. Setting status to draft/reviewed removes it from the gated corpus (deletes its chunks).</p>
+  </div>
+</form>
+
+{% if answer.transcript_raw and answer.transcript_raw != answer.answer_final %}
+<div class="panel">
+  <h3 style="margin-top:0">Original transcript (read-only)</h3>
+  <div class="raw">{{ answer.transcript_raw }}</div>
+</div>
+{% endif %}
+
+<form method="post" action="/admin/answers/{{ answer.id }}/delete" onsubmit="return confirm('Delete this answer and its chunks?')">
+  <button class="btn secondary" type="submit">Delete answer</button>
+</form>
+{% endblock %}

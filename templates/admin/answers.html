@@ -1,0 +1,44 @@
+{% extends "admin/base.html" %}
+{% block title %}Answers · Knowledge Studio{% endblock %}
+
+{% block styles %}
+  .snippet { font-size:13px; opacity:.85; max-height:84px; overflow:hidden; }
+  .src-typed { background:#eaf0fb; color:#274b8a; }
+  .src-rec { background:#f1e8d2; color:#7a5a12; }
+  .st-published { background:#e3f5e6; color:#1c6b2e; }
+  .st-draft { background:#f3f1ea; color:#6b6356; }
+  .st-reviewed { background:#fdf2e0; color:#9a5b09; }
+  .rowacts { display:flex; gap:8px; }
+{% endblock %}
+
+{% block body %}
+<h1>Answers</h1>
+<p style="opacity:.7;font-size:14px;margin-top:-6px">Every saved answer — typed or transcribed. Edit the text, retag the tier, change status, or re-embed. Editing here is how you refine an answer after recording.</p>
+
+{% if rows %}
+<table>
+  <thead><tr><th style="width:50px">#</th><th>Question</th><th style="width:90px">Tier</th><th style="width:90px">Source</th><th style="width:90px">Status</th><th>Answer</th><th style="width:70px">Chunks</th><th style="width:150px"></th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>{{ r.answer.id }}</td>
+      <td>{{ r.question.question_text if r.question else '—' }}</td>
+      <td><span class="pill">{{ r.answer.tier }}</span></td>
+      <td><span class="pill {{ 'src-typed' if r.source and r.source.type == 'manual' else 'src-rec' }}">{{ 'typed' if r.source and r.source.type == 'manual' else (r.source.type if r.source else '—') }}</span></td>
+      <td><span class="pill st-{{ r.answer.status }}">{{ r.answer.status }}</span></td>
+      <td><div class="snippet">{{ (r.answer.answer_final or r.answer.transcript_edited or r.answer.transcript_raw or '')[:240] }}</div></td>
+      <td>{{ r.chunks }}</td>
+      <td>
+        <div class="rowacts">
+          <a class="btn" href="/admin/answers/{{ r.answer.id }}/edit">Edit</a>
+          <form method="post" action="/admin/answers/{{ r.answer.id }}/delete" onsubmit="return confirm('Delete this answer and its chunks?')"><button class="btn secondary" type="submit">Delete</button></form>
+        </div>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="card"><p>No answers yet. Type one in the <a href="/admin/recorder">Recorder</a>, or record &amp; publish.</p></div>
+{% endif %}
+{% endblock %}
