@@ -4,26 +4,33 @@
 {% block styles %}
   .meta { opacity:.7; font-size:14px; margin-bottom:16px; }
   .btn.type { background:#fff; color:var(--ink); border:1px solid rgba(58,40,16,.25); }
+  .btn.ai { background:#fff; color:var(--saffron-dk,#C4651A); border:1px solid rgba(232,130,26,.4); }
   .actions { display:flex; gap:8px; justify-content:flex-end; align-items:center; }
   .ticks { display:flex; gap:5px; margin-right:4px; }
   .tick { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; border:1.5px solid rgba(58,40,16,.25); color:rgba(58,40,16,.45); background:#fff; }
   .tick.done { background:#1c6b2e; border-color:#1c6b2e; color:#fff; }
-  th.tiersh { text-align:center; width:120px; }
-  .typerow td { background:#FFFDF8; }
-  .typebox { display:none; }
-  .typebox.open { display:block; }
-  .typebox textarea { width:100%; min-height:130px; padding:11px 13px; border:1px solid rgba(58,40,16,.2); border-radius:8px; font:inherit; resize:vertical; }
-  .typebox .controls { display:flex; gap:10px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+  .panelrow td { padding:0; background:#FFFDF8; }
+  .panel { display:none; padding:12px 14px 16px; }
+  .tabs { display:flex; gap:4px; align-items:center; border-bottom:2px solid rgba(201,150,59,.3); margin-bottom:12px; flex-wrap:wrap; }
+  .tabs button { background:none; border:none; border-bottom:2px solid transparent; margin-bottom:-2px; padding:9px 14px; cursor:pointer; font:inherit; font-size:13px; color:var(--ink-lt); }
+  .tabs button:hover { color:var(--ink); }
+  .tabs button.active { color:var(--saffron-dk,#C4651A); border-bottom-color:var(--saffron); font-weight:600; }
+  .tabs .spacer { flex:1; }
+  .tabs .gen { color:#fff; background:var(--saffron); border-radius:8px; border-bottom:none; padding:8px 14px; font-size:12px; }
+  .tabs .gen:hover { background:#c4651a; color:#fff; }
+  .airesp { white-space:pre-wrap; font-size:14px; line-height:1.7; background:#fff; border:1px solid rgba(201,150,59,.25); border-radius:10px; padding:16px 18px; max-height:52vh; overflow:auto; color:var(--ink); }
+  .typebox textarea { width:100%; min-height:46vh; padding:14px 16px; border:1px solid rgba(58,40,16,.2); border-radius:10px; font:inherit; font-size:15px; line-height:1.7; resize:vertical; }
+  .typebox .controls { display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap; }
   .typebox .hint { font-size:12px; opacity:.6; }
 {% endblock %}
 
 {% block body %}
 <h1>Recorder — questions</h1>
-<p class="meta">{{ questions|length }} of {{ total }} questions seeded. <strong>Record</strong> opens the full page (canonical shloka + LLM baselines). <strong>Type</strong> lets you type, paste, or dictate (WisperFlow) the answer right here.</p>
+<p class="meta">{{ questions|length }} of {{ total }} questions seeded. <strong>Get AI responses</strong> pulls Claude/OpenAI/Gemini/Perplexity so you can answer beyond them. <strong>Type</strong> keeps your draft while you read each tab. <strong>Record</strong> opens the full page.</p>
 
 {% if questions %}
 <table>
-  <thead><tr><th style="width:50px">#</th><th>Question</th><th style="width:110px">Gita ref</th><th style="width:120px">Domain</th><th style="width:200px"></th></tr></thead>
+  <thead><tr><th style="width:44px">#</th><th>Question</th><th style="width:100px">Gita ref</th><th style="width:110px">Domain</th><th style="width:300px"></th></tr></thead>
   <tbody>
     {% for q in questions %}
     <tr>
@@ -40,24 +47,43 @@
             <span class="tick {% if t in qdone %}done{% endif %}" title="{{ t|capitalize }}{% if t in qdone %} — answered{% else %} — not yet{% endif %}">{% if t in qdone %}✓{% else %}{{ label }}{% endif %}</span>
             {% endfor %}
           </div>
-          <button type="button" class="btn type" onclick="toggleType({{ q.id }})">Type</button>
+          <button type="button" class="btn ai" onclick="openAI({{ q.id }})">Get AI responses</button>
+          <button type="button" class="btn type" onclick="openType({{ q.id }})">Type</button>
           <a class="btn" href="/admin/recorder/{{ q.id }}">Record</a>
         </div>
       </td>
     </tr>
-    <tr class="typerow">
-      <td colspan="5" style="padding:0">
-        <div class="typebox" id="typebox-{{ q.id }}" style="padding:14px 12px">
-          <form method="post" action="/admin/recorder/{{ q.id }}/text">
-            <input type="hidden" name="return_to" value="list" />
-            <textarea id="ta-{{ q.id }}" name="text" placeholder="Type, paste, or dictate (WisperFlow) GND's answer to this question…"></textarea>
-            <div class="controls">
-              <label style="margin:0">Tier</label>
-              <select name="tier" style="width:auto">{% for t in tiers %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
-              <button class="btn" type="submit">Save answer</button>
-              <span class="hint">Saved as a published answer for this tier — then ingest it from Embeddings.</span>
-            </div>
-          </form>
+    <tr class="panelrow">
+      <td colspan="5">
+        <div class="panel" id="panel-{{ q.id }}">
+          <div class="tabs">
+            <button id="tabbtn-{{ q.id }}-claude" class="active" onclick="showTab({{ q.id }},'claude')">Claude</button>
+            <button id="tabbtn-{{ q.id }}-openai" onclick="showTab({{ q.id }},'openai')">OpenAI</button>
+            <button id="tabbtn-{{ q.id }}-gemini" onclick="showTab({{ q.id }},'gemini')">Gemini</button>
+            <button id="tabbtn-{{ q.id }}-perplexity" onclick="showTab({{ q.id }},'perplexity')">Perplexity</button>
+            <button id="tabbtn-{{ q.id }}-type" onclick="showTab({{ q.id }},'type')">✎ Type</button>
+            <span class="spacer"></span>
+            <button type="button" class="gen" onclick="generate({{ q.id }})">↻ Get / refresh AI responses</button>
+          </div>
+          {% for p in ['claude','openai','gemini','perplexity'] %}
+          <div class="tabcontent" id="content-{{ q.id }}-{{ p }}" {% if not loop.first %}style="display:none"{% endif %}>
+            <div class="airesp" id="resp-{{ q.id }}-{{ p }}">Click “Get AI responses” to load {{ p|capitalize }}'s answer.</div>
+          </div>
+          {% endfor %}
+          <div class="tabcontent typebox" id="content-{{ q.id }}-type" style="display:none">
+            <form method="post" action="/admin/recorder/{{ q.id }}/text">
+              <input type="hidden" name="return_to" value="list" />
+              <textarea id="ta-{{ q.id }}" name="text" placeholder="Type, paste, or dictate (WisperFlow) GND's answer — beyond all four above…"></textarea>
+              <div class="controls">
+                <label style="margin:0">Tier</label>
+                <select name="tier" style="width:auto">{% for t in tiers %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
+                <label style="margin:0">Stage</label>
+                <select name="stage" style="width:auto">{% for s in stages %}<option value="{{ s }}">{{ s or '—' }}</option>{% endfor %}</select>
+                <button class="btn" type="submit">Save answer</button>
+                <span class="hint">Your draft stays as you switch tabs. Saved as a published answer → then ingest from Embeddings.</span>
+              </div>
+            </form>
+          </div>
         </div>
       </td>
     </tr>
@@ -72,10 +98,31 @@
 {% endif %}
 
 <script>
-function toggleType(id) {
-  var box = document.getElementById('typebox-' + id);
-  var open = box.classList.toggle('open');
-  if (open) { var ta = document.getElementById('ta-' + id); if (ta) ta.focus(); }
+const PROVS = ['claude','openai','gemini','perplexity'];
+function openPanel(qid){ document.getElementById('panel-'+qid).style.display='block'; }
+function showTab(qid, name){
+  ['claude','openai','gemini','perplexity','type'].forEach(t=>{
+    const c=document.getElementById('content-'+qid+'-'+t); if(c) c.style.display=(t===name)?'block':'none';
+    const b=document.getElementById('tabbtn-'+qid+'-'+t); if(b) b.classList.toggle('active', t===name);
+  });
+  if(name==='type'){ const ta=document.getElementById('ta-'+qid); if(ta) ta.focus(); }
 }
+function fill(qid, data){ PROVS.forEach(p=>{ const el=document.getElementById('resp-'+qid+'-'+p); if(el) el.textContent=(data&&data[p])? data[p] : '— no response —'; }); }
+function setLoading(qid){ PROVS.forEach(p=>{ const el=document.getElementById('resp-'+qid+'-'+p); if(el) el.textContent='Generating…'; }); }
+async function openAI(qid){
+  openPanel(qid); showTab(qid,'claude');
+  try{
+    const r=await fetch('/admin/recorder/'+qid+'/baselines/list');
+    const data=await r.json();
+    if(PROVS.some(p=>data[p])) fill(qid,data); else await generate(qid);
+  }catch(e){ /* leave prompts */ }
+}
+async function generate(qid){
+  openPanel(qid); if(!document.getElementById('tabbtn-'+qid+'-type').classList.contains('active')) showTab(qid,'claude');
+  setLoading(qid);
+  try{ const r=await fetch('/admin/recorder/'+qid+'/baselines/generate',{method:'POST'}); fill(qid, await r.json()); }
+  catch(e){ PROVS.forEach(p=>{ const el=document.getElementById('resp-'+qid+'-'+p); if(el) el.textContent='Failed — check the provider keys in Settings → AI.'; }); }
+}
+function openType(qid){ openPanel(qid); showTab(qid,'type'); }
 </script>
 {% endblock %}

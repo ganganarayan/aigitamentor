@@ -242,9 +242,25 @@ def recorder_list(request: Request, user: User = Depends(require_admin), db: Ses
             "questions": questions,
             "total": total,
             "tiers": list(TIER_RANK.keys()),
+            "stages": STAGES,
             "done_tiers": done,
         },
     )
+
+
+@router.get("/recorder/{question_id}/baselines/list", response_class=JSONResponse)
+def baselines_list(question_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    rows = llm_baselines.baselines_for(db, question_id)
+    return JSONResponse({r.provider: (r.answer_text or "") for r in rows})
+
+
+@router.post("/recorder/{question_id}/baselines/generate", response_class=JSONResponse)
+def baselines_generate(question_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    question = db.get(Question, question_id)
+    if question is None:
+        return JSONResponse({}, status_code=404)
+    rows = llm_baselines.generate_baselines(db, question)
+    return JSONResponse({r.provider: (r.answer_text or "") for r in rows})
 
 
 @router.get("/recorder/{question_id}", response_class=HTMLResponse)
