@@ -1,0 +1,74 @@
+{% extends "admin/base.html" %}
+{% block title %}Video resources · Knowledge Studio{% endblock %}
+{% block styles %}
+  .grid{display:grid;gap:16px}
+  .vcard{background:#fff;border:1px solid rgba(201,150,59,.25);border-radius:12px;padding:16px}
+  .vhead{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .vhead .tp{font-weight:600}
+  textarea{min-height:90px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+  .muted{font-size:12px;opacity:.65}
+  .inline{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+  .chk{display:flex;align-items:center;gap:6px;font-size:13px}
+  .chk input{width:auto}
+  details summary{cursor:pointer;color:var(--saffron);font-size:13px}
+{% endblock %}
+{% block body %}
+<h1>Video resources</h1>
+<p class="muted" style="margin:-8px 0 18px">
+  The mentor offers a video as its <strong>first recommendation</strong> when a user shows a recurring
+  <strong>anger</strong> pattern. Give each video the topic <code>anger</code> to feed that flow (other
+  topics are ready for future triggers). Paste the host's <strong>embed code</strong> (Cloudflare Stream,
+  unlisted YouTube, Vimeo…). When shared, the app builds a private page that expires in 24 hours.
+  {% if grant_count %}<br>{{ grant_count }} private link(s) issued so far.{% endif %}
+</p>
+
+<div class="card" style="margin-bottom:22px">
+  <h3 style="margin:0 0 8px">Add a video</h3>
+  <form method="post" action="/admin/videos">
+    <div class="row" style="display:flex;gap:14px;flex-wrap:wrap">
+      <div style="flex:1;min-width:140px"><label>Topic</label><input name="topic" placeholder="anger" required></div>
+      <div style="flex:2;min-width:200px"><label>Title</label><input name="title" placeholder="Working with anger — GND" required></div>
+    </div>
+    <label>Embed code (HTML)</label>
+    <textarea name="embed_html" placeholder="&lt;iframe src=&quot;…&quot; allowfullscreen&gt;&lt;/iframe&gt;" required></textarea>
+    <label>Note shown under the video (optional)</label>
+    <input name="note" placeholder="Sit with this once, then tell me what shifted.">
+    <div style="margin-top:12px"><button class="btn" type="submit">Add video</button></div>
+  </form>
+</div>
+
+<div class="grid">
+  {% for v in videos %}
+  <div class="vcard">
+    <div class="vhead">
+      <span class="pill {{ 'ok' if v.active else '' }}">{{ 'active' if v.active else 'off' }}</span>
+      <span class="tp">{{ v.topic }}</span>
+      <span>·</span>
+      <span>{{ v.title }}</span>
+    </div>
+    <details>
+      <summary>Edit / view embed</summary>
+      <form method="post" action="/admin/videos/{{ v.id }}/edit" style="margin-top:10px">
+        <div class="row" style="display:flex;gap:14px;flex-wrap:wrap">
+          <div style="flex:1;min-width:140px"><label>Topic</label><input name="topic" value="{{ v.topic }}" required></div>
+          <div style="flex:2;min-width:200px"><label>Title</label><input name="title" value="{{ v.title }}" required></div>
+        </div>
+        <label>Embed code (HTML)</label>
+        <textarea name="embed_html" required>{{ v.embed_html }}</textarea>
+        <label>Note</label>
+        <input name="note" value="{{ v.note or '' }}">
+        <div class="inline">
+          <label class="chk"><input type="checkbox" name="active" {% if v.active %}checked{% endif %}> Active</label>
+          <button class="btn" type="submit">Save</button>
+        </div>
+      </form>
+      <form method="post" action="/admin/videos/{{ v.id }}/delete" onsubmit="return confirm('Delete this video resource?')" style="margin-top:8px">
+        <button class="btn secondary" type="submit">Delete</button>
+      </form>
+    </details>
+  </div>
+  {% else %}
+  <p class="muted">No videos yet. Add one above with topic <code>anger</code> to power the escalation flow.</p>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -34,9 +34,11 @@ from app.models import (
     Payment,
     Question,
     Recording,
+    ResourceGrant,
     Subscription,
     User,
     Verse,
+    VideoResource,
 )
 from app.models.corpus import TIER_RANK
 from app.services import ai_settings
@@ -196,6 +198,7 @@ def user_edit_save(
     tier: str = Form("seeker"),
     role: str = Form("user"),
     plan_expires: str = Form(""),
+    assessment_taken: str = Form(""),
     user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -215,6 +218,15 @@ def user_edit_save(
             pass
     else:
         target.plan_expires_at = None
+    assessment_taken = assessment_taken.strip()
+    if assessment_taken:
+        try:
+            d = dt.date.fromisoformat(assessment_taken)
+            target.assessment_taken_at = dt.datetime(d.year, d.month, d.day, 12, 0, tzinfo=dt.timezone.utc)
+        except ValueError:
+            pass
+    else:
+        target.assessment_taken_at = None
     db.commit()
     return RedirectResponse("/admin/users", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -790,3 +802,67 @@ def safety_logs(request: Request, user: User = Depends(require_admin), db: Sessi
     return templates.TemplateResponse(
         "admin/safety.html", {"request": request, "user": user, "rows": rows}
     )
+
+
+# --- Video resources (Chunk 5): the anger-escalation library ------------------
+
+@router.get("/videos", response_class=HTMLResponse)
+def videos_page(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    videos = list(db.execute(select(VideoResource).order_by(VideoResource.topic, VideoResource.id.desc())).scalars())
+    grant_count = db.execute(select(func.count()).select_from(ResourceGrant)).scalar_one()
+    return templates.TemplateResponse(
+        "admin/videos.html",
+        {"request": request, "user": user, "videos": videos, "grant_count": grant_count},
+    )
+
+
+@router.post("/videos")
+def videos_create(
+    topic: str = Form(...),
+    title: str = Form(...),
+    embed_html: str = Form(...),
+    note: str = Form(""),
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    topic = topic.strip().lower()
+    if topic and title.strip() and embed_html.strip():
+        db.add(
+            VideoResource(
+                topic=topic, title=title.strip(), embed_html=embed_html.strip(),
+                note=note.strip() or None, active=True,
+            )
+        )
+        db.commit()
+    return RedirectResponse("/admin/videos", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/videos/{video_id}/edit")
+def videos_edit(
+    video_id: int,
+    topic: str = Form(...),
+    title: str = Form(...),
+    embed_html: str = Form(...),
+    note: str = Form(""),
+    active: str = Form(""),
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    v = db.get(VideoResource, video_id)
+    if v is not None:
+        v.topic = topic.strip().lower() or v.topic
+        v.title = title.strip() or v.title
+        v.embed_html = embed_html.strip() or v.embed_html
+        v.note = note.strip() or None
+        v.active = active == "on"
+        db.commit()
+    return RedirectResponse("/admin/videos", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/videos/{video_id}/delete")
+def videos_delete(video_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    v = db.get(VideoResource, video_id)
+    if v is not None:
+        db.delete(v)
+        db.commit()
+    return RedirectResponse("/admin/videos", status_code=status.HTTP_303_SEE_OTHER)

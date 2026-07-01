@@ -28,6 +28,8 @@ class User(Base, PkMixin, TimestampMixin):
     tier: Mapped[str] = mapped_column(String(20), default="seeker", index=True)
     status: Mapped[str] = mapped_column(String(20), default="active", index=True)
     assessment_band: Mapped[str | None] = mapped_column(String(60))  # from Assess360
+    # When they last took the emotional assessment — gates the 1-on-1 offer (Chunk 5).
+    assessment_taken_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     referral_ai_source: Mapped[str | None] = mapped_column(String(60))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Profile collected on first contact (the personalization differentiator).

@@ -24,6 +24,9 @@
     <label style="margin-top:12px">Plan end date</label>
     <input type="date" name="plan_expires" value="{{ target.plan_expires_at.strftime('%Y-%m-%d') if target.plan_expires_at else '' }}" />
     <p style="font-size:12px;opacity:.6;margin:6px 0 16px">Leave blank for no end date. Once past, the user auto-reverts to Seeker on their next request.</p>
+    <label>Assessment last taken</label>
+    <input type="date" name="assessment_taken" value="{{ target.assessment_taken_at.strftime('%Y-%m-%d') if target.assessment_taken_at else '' }}" />
+    <p style="font-size:12px;opacity:.6;margin:6px 0 16px">Used by the 1-on-1 escalation: within 15 days → the booking link is offered; older/blank → the assessment is recommended first.</p>
     <button class="btn" type="submit">Save changes</button>
   </form>
 </div>

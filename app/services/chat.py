@@ -286,17 +286,24 @@ def _history_messages(db: Session, conversation: Conversation) -> list[dict]:
 _MAX_OUTPUT_TOKENS = 400
 
 
-def _call_claude(system: str, messages: list[dict], cfg, model: str) -> tuple[str, int, int]:
+def _call_claude(
+    system: str, messages: list[dict], cfg, model: str, extra_system: str | None = None
+) -> tuple[str, int, int]:
     key = cfg.key_for("anthropic")
     if not key:
         raise RuntimeError("Anthropic API key not configured — set it in Settings → AI.")
     import anthropic
 
     client = anthropic.Anthropic(api_key=key)
+    # Cache the big, stable system prompt; append any per-turn escalation guidance
+    # as a second, un-cached block so it never busts the prompt cache.
+    system_blocks = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
+    if extra_system:
+        system_blocks.append({"type": "text", "text": extra_system})
     resp = client.messages.create(
         model=model,
         max_tokens=_MAX_OUTPUT_TOKENS,
-        system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+        system=system_blocks,
         messages=messages,
     )
     text = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
@@ -322,8 +329,13 @@ def _fill(template: str, values: dict) -> str:
     return out
 
 
-def answer(db: Session, user, conversation: Conversation, user_message: str) -> tuple[Generation, str]:
-    """Produce one grounded, tier-gated answer; log a generations row."""
+def answer(
+    db: Session, user, conversation: Conversation, user_message: str, extra_system: str | None = None
+) -> tuple[Generation, str]:
+    """Produce one grounded, tier-gated answer; log a generations row.
+
+    ``extra_system`` carries per-turn guidance (e.g. the escalation directive) as a
+    separate, un-cached system block."""
     cfg = ai_settings.resolved(db)
 
     # 1) embed + tier-gated retrieval
@@ -360,7 +372,7 @@ def answer(db: Session, user, conversation: Conversation, user_message: str) -> 
     # 3) call Claude (timed) — free tier → Haiku, paid → Sonnet.
     model = cfg.chat_model_for_tier(user.tier)
     started = time.perf_counter()
-    answer_text, tin, tout = _call_claude(system, messages, cfg, model)
+    answer_text, tin, tout = _call_claude(system, messages, cfg, model, extra_system=extra_system)
     latency_ms = int((time.perf_counter() - started) * 1000)
 
     # 4) deterministic verse check + log

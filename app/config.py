@@ -82,6 +82,16 @@ class Settings(BaseSettings):
     def razorpay_enabled(self) -> bool:
         return bool(self.razorpay_key_id and self.razorpay_key_secret)
 
+    # --- Escalation (Chunk 5: video resource + 1-on-1 with GND) ---
+    # Paid personal-consultation booking/payment link (pricing lives on that page).
+    oneonone_booking_url: str | None = Field(default=None, alias="ONEONONE_BOOKING_URL")
+    # Emotional-assessment link, recommended when the last assessment is >15 days old.
+    assessment_url: str | None = Field(default=None, alias="ASSESSMENT_URL")
+    # How long a prescribed video page stays live before it expires.
+    resource_link_ttl_hours: int = Field(default=24, alias="RESOURCE_LINK_TTL_HOURS")
+    # An assessment older than this (days) is treated as stale for the 1-on-1 gate.
+    assessment_fresh_days: int = Field(default=15, alias="ASSESSMENT_FRESH_DAYS")
+
     # --- Analytics (Meta) ---
     meta_pixel_id: str | None = Field(default=None, alias="META_PIXEL_ID")
     meta_capi_token: str | None = Field(default=None, alias="META_CAPI_TOKEN")

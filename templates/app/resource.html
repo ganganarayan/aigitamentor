@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>{% if video %}{{ video.title }}{% else %}Resource{% endif %} · AI Gita Mentor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@500;600&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--saffron:#E8821A;--saffron-dk:#C4651A;--gold:#C9963B;--gold-lt:#F0C96A;--cream:#FAF3E8;--parchment:#F2E6CC;--dark:#2E1F0F;--ink:#3A2810;--ink-lt:#7A5C38}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Jost',sans-serif;font-weight:300;color:var(--ink);background:var(--cream);min-height:100vh}
+  .top{padding:14px 20px;border-bottom:1px solid rgba(201,150,59,.2);background:#fff;display:flex;align-items:center;gap:10px}
+  .top .om{color:var(--gold);font-size:20px}
+  .top .t{font-family:'Cinzel',serif;font-size:13px;letter-spacing:.12em;color:var(--dark)}
+  .top .sp{flex:1}
+  .top a{font-size:13px;color:var(--saffron-dk);text-decoration:none}
+  .wrap{max-width:860px;margin:0 auto;padding:30px 20px 60px}
+  h1{font-family:'Cormorant Garamond',serif;font-weight:600;font-size:30px;color:var(--dark);margin-bottom:6px}
+  .expiry{display:inline-block;margin:4px 0 20px;padding:4px 12px;border-radius:999px;background:var(--parchment);color:var(--ink-lt);font-size:12px}
+  .player{position:relative;background:#000;border-radius:14px;overflow:hidden;border:1px solid rgba(201,150,59,.3)}
+  /* make common embeds responsive */
+  .player :is(iframe,video,embed){display:block;width:100%;min-height:min(64vw,480px);border:0}
+  .note{margin-top:18px;font-size:15px;line-height:1.7;color:var(--ink);background:#fff;border:1px solid rgba(201,150,59,.25);border-radius:12px;padding:16px 18px}
+  .center{max-width:520px;margin:12vh auto 0;text-align:center;padding:0 20px}
+  .center .om{font-size:44px;color:var(--gold)}
+  .center h2{font-family:'Cormorant Garamond',serif;font-weight:400;font-size:28px;color:var(--dark);margin:10px 0 8px}
+  .center p{color:var(--ink-lt);line-height:1.7}
+  .btn{display:inline-block;margin-top:22px;padding:11px 24px;background:var(--saffron);color:#fff;text-decoration:none;border-radius:999px;font-size:14px}
+  .btn:hover{background:var(--saffron-dk)}
+</style>
+</head>
+<body>
+<div class="top">
+  <span class="om">ॐ</span><span class="t">AI GITA MENTOR</span>
+  <span class="sp"></span>
+  <a href="/app">← Back to your mentor</a>
+</div>
+
+{% if state == 'ok' and video %}
+<div class="wrap">
+  <h1>{{ video.title }}</h1>
+  <div class="expiry">🔒 Private to you · this link expires 24 hours after it was shared</div>
+  <div class="player">{{ video.embed_html | safe }}</div>
+  {% if video.note %}<div class="note">{{ video.note }}</div>{% endif %}
+</div>
+{% elif state == 'expired' %}
+<div class="center">
+  <div class="om">ॐ</div>
+  <h2>This link has expired</h2>
+  <p>For your privacy, GND's video links stay open for a limited time. If you'd still
+     like to watch it, just ask your mentor and a fresh link can be shared.</p>
+  <a class="btn" href="/app">Return to your mentor</a>
+</div>
+{% else %}
+<div class="center">
+  <div class="om">ॐ</div>
+  <h2>Resource not available</h2>
+  <p>This link isn't valid for your account, or the resource is no longer available.</p>
+  <a class="btn" href="/app">Return to your mentor</a>
+</div>
+{% endif %}
+</body>
+</html>

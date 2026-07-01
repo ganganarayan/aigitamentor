@@ -57,6 +57,13 @@
   .send{width:46px;height:46px;border:none;border-radius:50%;background:var(--saffron);color:#fff;font-size:18px;cursor:pointer;flex-shrink:0}
   .send:hover{background:var(--saffron-dk)}.send:disabled{opacity:.5;cursor:not-allowed}
   .disc{max-width:760px;margin:8px auto 0;text-align:center;font-size:11px;color:var(--ink-lt);opacity:.6}
+  /* usage ring (Chunk 6) */
+  .meter{display:flex;align-items:center;gap:7px;color:var(--ink-lt)}
+  .meter svg{display:block}
+  .meter .mn{font-size:13px;color:var(--dark);font-variant-numeric:tabular-nums;font-weight:500}
+  .meter .ml{font-size:11px;color:var(--ink-lt)}
+  .meter.low .mn,.meter.low #ring{color:var(--saffron-dk);stroke:var(--saffron-dk)}
+  .meter #ring{transition:stroke-dashoffset .5s ease}
   @media(max-width:760px){
     .side{position:fixed;left:-300px;top:0;bottom:0;z-index:50;transition:left .25s}
     .side.open{left:0}
@@ -87,6 +94,13 @@
       <span class="om">ॐ</span>
       <span class="t">Your Mentor</span>
       <span class="sp"></span>
+      <div class="meter" id="meter" title="Loading usage…">
+        <svg width="30" height="30" viewBox="0 0 30 30">
+          <circle cx="15" cy="15" r="12" fill="none" stroke="rgba(201,150,59,.22)" stroke-width="3"/>
+          <circle id="ring" cx="15" cy="15" r="12" fill="none" stroke="var(--saffron)" stroke-width="3" stroke-linecap="round" stroke-dasharray="75.4" stroke-dashoffset="0" transform="rotate(-90 15 15)"/>
+        </svg>
+        <span><span class="mn" id="meterN">–</span> <span class="ml">left today</span></span>
+      </div>
       {% if user.tier != 'sadhaka' %}<a href="/app/upgrade" style="font-size:12px;color:var(--saffron-dk);text-decoration:none">{% if user.tier == 'seeker' %}Unlock memory → Abhyāsi{% else %}Go deeper → Sādhaka{% endif %}</a>{% endif %}
     </div>
 
@@ -171,9 +185,28 @@
       const data=await r.json(); hideTyping();
       if(data.conversation_id){ convId=data.conversation_id; }
       addMsg('assistant', data.answer || 'Something went wrong.', data.generation_id);
+      refreshUsage(data.usage);
     }catch(e){ hideTyping(); addMsg('assistant','Connection error — please try again.', null); }
     sendBtn.disabled=false; input.focus();
   }
+
+  const RING_C = 75.4;  // 2πr, r=12
+  async function refreshUsage(u){
+    try{
+      if(!u){ const r=await fetch('/app/usage'); u=await r.json(); }
+      const used = Math.min(u.daily_pct || 0, 100);
+      document.getElementById('ring').setAttribute('stroke-dashoffset', (RING_C * used / 100).toFixed(1));
+      let q = u.questions_left_today;
+      if(u.questions_left_month != null) q = Math.min(q, u.questions_left_month);
+      document.getElementById('meterN').textContent = (q != null ? q : '–');
+      const m = document.getElementById('meter');
+      m.classList.toggle('low', q != null && q <= 2);
+      let t = 'Today: ' + u.daily_left + ' of ' + u.daily_cap + ' tokens left (~' + u.questions_left_today + ' questions)';
+      if(u.monthly_cap){ t += ' · This month: ' + u.monthly_left + ' of ' + u.monthly_cap; }
+      m.title = t;
+    }catch(e){}
+  }
+  refreshUsage();
 
   function fb(genId, kind, btn){
     fetch('/app/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({generation_id:genId,kind})});

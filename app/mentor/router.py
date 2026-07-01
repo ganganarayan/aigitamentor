@@ -23,7 +23,7 @@ from app.models import (
     Subscription,
     UserPattern,
 )
-from app.services import chat, memory, metering, safety
+from app.services import chat, escalation, memory, metering, safety
 from app.templating import templates
 
 logger = logging.getLogger("app.mentor")
@@ -154,11 +154,16 @@ def chat_send(
             {"limited": True, "conversation_id": conv.id, "answer": metering.limit_message(user.tier)}
         )
 
+    # Anger-triggered escalation (Chunk 5): decide the turn's move before answering,
+    # then append the real (video / 1-on-1) link after. The mentor writes the prose.
+    directive = escalation.plan(db, user, conv, message)
+
     # Generate the grounded answer.
     try:
-        gen, answer_text = chat.answer(db, user, conv, message)
+        gen, answer_text = chat.answer(db, user, conv, message, extra_system=directive.inject or None)
         generation_id = gen.id
         metering.add_usage(db, user, (gen.tokens_in or 0) + (gen.tokens_out or 0))
+        answer_text = escalation.finalize(db, user, conv, message, answer_text, directive)
         # Refresh summary + pattern in the background (memory engine).
         background.add_task(memory.refresh_after_turn, user.id, conv.id)
     except Exception:  # noqa: BLE001 — surface a friendly message, never 500 the chat
@@ -204,6 +209,19 @@ def chat_feedback(payload: FeedbackIn, user=Depends(require_user), db: Session =
         gen.feedback = fb
         db.commit()
     return JSONResponse({"ok": True})
+
+
+# --- Private video resource (Chunk 5): a time-limited, owner-checked page -----
+
+@router.get("/app/resource/{token}", response_class=HTMLResponse)
+def resource_view(
+    token: str, request: Request, user=Depends(require_user), db: Session = Depends(get_db)
+):
+    video, state = escalation.grant_for_view(db, user, token)
+    return templates.TemplateResponse(
+        "app/resource.html",
+        {"request": request, "user": user, "video": video, "state": state},
+    )
 
 
 # --- Account: export + deletion (privacy) ----------------------------------

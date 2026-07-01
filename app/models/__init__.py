@@ -45,6 +45,7 @@ from app.models.acquisition import (
 )
 from app.models.ai_config import AiConfig
 from app.models.operational import LlmBaseline, Recording
+from app.models.escalation import EscalationState, ResourceGrant, VideoResource
 
 __all__ = [
     "Base",
@@ -91,4 +92,8 @@ __all__ = [
     # operational
     "Recording",
     "LlmBaseline",
+    # escalation (Chunk 5)
+    "VideoResource",
+    "ResourceGrant",
+    "EscalationState",
 ]
