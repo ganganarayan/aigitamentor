@@ -11,7 +11,7 @@ import secrets
 import urllib.parse
 
 import httpx
-from fastapi import APIRouter, Depends, Form, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from itsdangerous import BadSignature, URLSafeSerializer
 from sqlalchemy.orm import Session
@@ -22,6 +22,7 @@ from app.auth.security import COOKIE_NAME, create_session_token
 from app.config import settings
 from app.db import get_db
 from app.models import User
+from app.services import meta
 from app.templating import templates
 
 router = APIRouter(tags=["auth"])
@@ -108,6 +109,7 @@ def signup_page(request: Request, next: str = "/app", error: str | None = None):
 @router.post("/signup")
 def signup_submit(
     request: Request,
+    background: BackgroundTasks,
     email: str = Form(...),
     password: str = Form(...),
     name: str = Form(""),
@@ -139,6 +141,8 @@ def signup_submit(
     # AI-referral source: the self-report field, else derive from the referrer.
     source = (referral.strip() or _referral_from_referrer(referrer)) or None
     user = service.create_email_user(db, email, password, name.strip() or None, phone.strip() or None, source)
+    # Free signup = start of the trial → server-side StartTrial (CAPI).
+    background.add_task(meta.track_start_trial, user.email)
     dest = _safe_next(next)
     dest += ("&" if "?" in dest else "?") + "welcome=1"  # fire CompleteRegistration pixel
     resp = RedirectResponse(dest, status_code=status.HTTP_303_SEE_OTHER)
@@ -201,6 +205,7 @@ def google_login(next: str = "/app"):
 @router.get("/auth/google/callback")
 async def google_callback(
     request: Request,
+    background: BackgroundTasks,
     code: str | None = None,
     state: str | None = None,
     db: Session = Depends(get_db),
@@ -241,10 +246,16 @@ async def google_callback(
     email = (info.get("email") or "").lower()
     if not email or not info.get("email_verified", True):
         return RedirectResponse("/login?error=Your+Google+email+is+not+verified.")
+    was_new = service.get_by_email(db, email) is None
     user = service.upsert_oauth_user(
         db, email=email, name=info.get("name"), provider="google", subject=info.get("sub", "")
     )
-    resp = RedirectResponse(_safe_next(data.get("next")), status_code=status.HTTP_303_SEE_OTHER)
+    dest = _safe_next(data.get("next"))
+    if was_new:
+        # New Google signup = registration + start of trial.
+        background.add_task(meta.track_start_trial, user.email)
+        dest += ("&" if "?" in dest else "?") + "welcome=1"
+    resp = RedirectResponse(dest, status_code=status.HTTP_303_SEE_OTHER)
     set_session_cookie(resp, user)
     resp.delete_cookie(_OAUTH_STATE_COOKIE, path="/")
     return resp

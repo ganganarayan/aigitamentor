@@ -21,7 +21,7 @@ def _hash(value: str) -> str:
     return hashlib.sha256(value.strip().lower().encode("utf-8")).hexdigest()
 
 
-def track_start_trial(email: str) -> None:
+def _send(event_name: str, email: str) -> None:
     if not (settings.meta_pixel_id and settings.meta_capi_token) or not email:
         return
     import httpx
@@ -29,7 +29,7 @@ def track_start_trial(email: str) -> None:
     payload = {
         "data": [
             {
-                "event_name": "StartTrial",
+                "event_name": event_name,
                 "event_time": int(time.time()),
                 "action_source": "website",
                 "user_data": {"em": [_hash(email)]},
@@ -44,4 +44,14 @@ def track_start_trial(email: str) -> None:
             timeout=10,
         )
     except Exception:  # noqa: BLE001
-        logger.warning("Meta CAPI StartTrial failed", exc_info=True)
+        logger.warning("Meta CAPI %s failed", event_name, exc_info=True)
+
+
+def track_start_trial(email: str) -> None:
+    """Fired on every new signup (free tier = start of the trial) and on the
+    first paid subscription — a robust server-side conversion signal."""
+    _send("StartTrial", email)
+
+
+def track_complete_registration(email: str) -> None:
+    _send("CompleteRegistration", email)
