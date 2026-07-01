@@ -141,13 +141,25 @@ def signup_submit(
     # AI-referral source: the self-report field, else derive from the referrer.
     source = (referral.strip() or _referral_from_referrer(referrer)) or None
     user = service.create_email_user(db, email, password, name.strip() or None, phone.strip() or None, source)
-    # Free signup = start of the trial → server-side StartTrial (CAPI).
-    background.add_task(meta.track_start_trial, user.email)
-    dest = _safe_next(next)
-    dest += ("&" if "?" in dest else "?") + "welcome=1"  # fire CompleteRegistration pixel
-    resp = RedirectResponse(dest, status_code=status.HTTP_303_SEE_OTHER)
+    resp = RedirectResponse(_welcome_dest(next, request, user, background), status_code=status.HTTP_303_SEE_OTHER)
     set_session_cookie(resp, user)
     return resp
+
+
+def _welcome_dest(next: str, request: Request, user: User, background: BackgroundTasks) -> str:
+    """Fire deduped CompleteRegistration + StartTrial (CAPI) and build the welcome
+    redirect carrying the matching event_ids for the client Pixel."""
+    reg_id = meta.new_event_id()
+    trial_id = meta.new_event_id()
+    background.add_task(
+        meta.track_complete_registration, user.email, request=request, phone=user.phone, external_id=user.id, event_id=reg_id
+    )
+    background.add_task(
+        meta.track_start_trial, user.email, request=request, phone=user.phone, external_id=user.id, event_id=trial_id
+    )
+    dest = _safe_next(next)
+    sep = "&" if "?" in dest else "?"
+    return f"{dest}{sep}welcome=1&reg={reg_id}&trial={trial_id}"
 
 
 _AI_REFERRERS = {
@@ -250,11 +262,8 @@ async def google_callback(
     user = service.upsert_oauth_user(
         db, email=email, name=info.get("name"), provider="google", subject=info.get("sub", "")
     )
-    dest = _safe_next(data.get("next"))
-    if was_new:
-        # New Google signup = registration + start of trial.
-        background.add_task(meta.track_start_trial, user.email)
-        dest += ("&" if "?" in dest else "?") + "welcome=1"
+    # New Google signup = registration + start of trial (deduped CAPI + Pixel).
+    dest = _welcome_dest(data.get("next"), request, user, background) if was_new else _safe_next(data.get("next"))
     resp = RedirectResponse(dest, status_code=status.HTTP_303_SEE_OTHER)
     set_session_cookie(resp, user)
     resp.delete_cookie(_OAUTH_STATE_COOKIE, path="/")

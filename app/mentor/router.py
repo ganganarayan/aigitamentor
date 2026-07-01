@@ -23,7 +23,7 @@ from app.models import (
     Subscription,
     UserPattern,
 )
-from app.services import chat, memory, metering, safety
+from app.services import chat, memory, meta, metering, safety
 from app.templating import templates
 
 logger = logging.getLogger("app.mentor")
@@ -44,11 +44,16 @@ def _conversations(db: Session, user_id: int) -> list[Conversation]:
 @router.get("/app", response_class=HTMLResponse)
 def app_home(
     request: Request,
+    background: BackgroundTasks,
     c: int | None = None,
     welcome: int = 0,
+    reg: str | None = None,
+    trial: str | None = None,
     user=Depends(require_user),
     db: Session = Depends(get_db),
 ):
+    pv = meta.new_event_id()
+    background.add_task(meta.track_page_view, request, pv)
     conversations = _conversations(db, user.id)
     active = None
     if c is not None:
@@ -75,6 +80,9 @@ def app_home(
             "active": active,
             "messages": messages,
             "welcome": bool(welcome),
+            "pv_event_id": pv,
+            "reg_event_id": reg,
+            "trial_event_id": trial,
         },
     )
 

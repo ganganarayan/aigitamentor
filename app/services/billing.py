@@ -131,18 +131,28 @@ def handle_webhook(db: Session, body: bytes, signature: str | None) -> bool:
     if name == "subscription.charged":
         pay = (payload.get("payment") or {}).get("entity") or {}
         if pay.get("id"):
+            amount = (pay.get("amount") or 0) / 100.0
             db.add(
                 Payment(
                     user_id=sub_row.user_id,
                     subscription_id=sub_row.id,
                     razorpay_payment_id=pay.get("id"),
                     razorpay_order_id=pay.get("order_id"),
-                    amount=(pay.get("amount") or 0) / 100.0,
+                    amount=amount,
                     currency=pay.get("currency", "INR"),
                     status=pay.get("status", "captured"),
                 )
             )
             db.commit()
+            from app.services import meta
+
+            owner = db.get(User, sub_row.user_id)
+            if owner is not None:
+                # Purchase (CAPI) — event_id = razorpay payment id → idempotent dedup.
+                meta.track_purchase(
+                    owner.email, value=amount, currency=pay.get("currency", "INR"),
+                    phone=owner.phone, external_id=owner.id, event_id=pay.get("id"),
+                )
     return True
 
 

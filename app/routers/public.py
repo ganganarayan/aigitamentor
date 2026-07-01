@@ -8,11 +8,12 @@ published so the route and crawler contract exist from day one.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
 from app.config import settings
 from app.db import SessionLocal
+from app.services import meta
 from app.templating import templates
 
 router = APIRouter(tags=["public"])
@@ -30,10 +31,12 @@ ALLOWED_BOTS = [
 
 
 @router.get("/", response_class=HTMLResponse)
-def landing(request: Request):
+def landing(request: Request, background: BackgroundTasks):
+    pv = meta.new_event_id()  # dedup id shared by client Pixel + server CAPI PageView
+    background.add_task(meta.track_page_view, request, pv)
     return templates.TemplateResponse(
         "landing.html",
-        {"request": request, "app_name": settings.app_name},
+        {"request": request, "app_name": settings.app_name, "pv_event_id": pv},
     )
 
 

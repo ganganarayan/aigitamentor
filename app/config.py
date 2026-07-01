@@ -85,6 +85,7 @@ class Settings(BaseSettings):
     # --- Analytics (Meta) ---
     meta_pixel_id: str | None = Field(default=None, alias="META_PIXEL_ID")
     meta_capi_token: str | None = Field(default=None, alias="META_CAPI_TOKEN")
+    meta_test_event_code: str | None = Field(default=None, alias="META_TEST_EVENT_CODE")
 
     @property
     def is_production(self) -> bool:
