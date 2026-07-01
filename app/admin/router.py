@@ -471,16 +471,22 @@ def ingest_one(answer_id: int, background: BackgroundTasks, user: User = Depends
 # --- Settings → AI (runtime, DB-backed) ------------------------------------
 
 @router.get("/settings", response_class=HTMLResponse)
-def settings_page(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+def settings_page(
+    request: Request,
+    error: str | None = None,
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
     return templates.TemplateResponse(
-        "admin/settings.html", {"request": request, "user": user, "ai": ai_settings.view(db)}
+        "admin/settings.html", {"request": request, "user": user, "ai": ai_settings.view(db), "error": error}
     )
 
 
 @router.post("/settings")
 def settings_save(
-    chat_provider: str = Form("claude"),
-    chat_model: str = Form(""),
+    model_admin: str = Form(""),
+    model_free: str = Form(""),
+    model_paid: str = Form(""),
     embedding_model: str = Form(""),
     transcribe_model: str = Form(""),
     baseline_providers: list[str] = Form(default=[]),
@@ -495,6 +501,7 @@ def settings_save(
     user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    # Apply any new keys first so validation can use them.
     key_updates = {
         "anthropic": anthropic_api_key.strip(),
         "openai": openai_api_key.strip(),
@@ -511,16 +518,22 @@ def settings_save(
         ]
         if flag
     ]
+    models = [model_admin.strip(), model_free.strip(), model_paid.strip()]
     ai_settings.update(
         db,
-        chat_provider=chat_provider,
-        chat_model=chat_model.strip(),
+        model_admin=model_admin.strip(),
+        model_free=model_free.strip(),
+        model_paid=model_paid.strip(),
         embedding_model=embedding_model.strip(),
         transcribe_model=transcribe_model.strip(),
         baseline_providers=baseline_providers,
         key_updates=key_updates,
         key_clears=key_clears,
     )
+    # Validate chat model ids against the Models API (typos can't silently break chat).
+    error = ai_settings.validate_chat_models(db, models)
+    if error:
+        return RedirectResponse(f"/admin/settings?error={error}", status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse("/admin/settings", status_code=status.HTTP_303_SEE_OTHER)
 
 

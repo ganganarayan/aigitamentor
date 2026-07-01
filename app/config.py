@@ -46,8 +46,12 @@ class Settings(BaseSettings):
     gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
     perplexity_api_key: str | None = Field(default=None, alias="PERPLEXITY_API_KEY")
 
-    # Model defaults (overridable per-version via the ai_config table).
-    chat_model: str = Field(default="claude-opus-4-8", alias="CHAT_MODEL")
+    # Model defaults (overridable at runtime via Settings → AI / the DB).
+    # Chat routes by tier: free → Haiku, paid → Sonnet. Admin/recorder/baselines
+    # use chat_model. Confirm exact ids against the Models API at setup.
+    chat_model: str = Field(default="claude-sonnet-5", alias="CHAT_MODEL")  # admin/recorder/baselines
+    chat_model_free: str = Field(default="claude-haiku-4-5", alias="CHAT_MODEL_FREE")
+    chat_model_paid: str = Field(default="claude-sonnet-5", alias="CHAT_MODEL_PAID")
     embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
     embedding_dim: int = Field(default=1536, alias="EMBEDDING_DIM")
     transcribe_model: str = Field(default="gpt-4o-mini-transcribe", alias="TRANSCRIBE_MODEL")

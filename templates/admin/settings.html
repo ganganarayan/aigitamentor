@@ -18,33 +18,39 @@
   .clearbox { font-size:12px; opacity:.8; margin-top:8px; display:inline-flex; align-items:center; gap:6px; }
   .checks { display:flex; gap:16px; flex-wrap:wrap; }
   .checks label { display:inline-flex; align-items:center; gap:6px; margin:0; }
-  .save { margin-top:6px; }
+  .err { background:#fdecea; color:#8a1c12; border-radius:10px; padding:11px 14px; margin-bottom:16px; font-size:14px; }
+  label small { opacity:.6; }
 {% endblock %}
 
 {% block body %}
 <h1>Settings — AI</h1>
-<p style="opacity:.7;font-size:14px;margin-top:-6px">Selectable at runtime — no redeploy. Each value uses what you set here; if blank, it falls back to the environment variable. Keys are stored in your database and never shown back (only whether they're set, and from where).</p>
+<p style="opacity:.7;font-size:14px;margin-top:-6px">Runtime-selectable — no redeploy. Each value uses what you set here; blank falls back to the environment variable. Keys are encrypted in the database and never shown back (only set/unset + source).</p>
+{% if error %}<div class="err">{{ error }}</div>{% endif %}
 
 <form method="post" action="/admin/settings">
-  <div class="grid2">
-    <div class="panel">
-      <h3>Chat mentor</h3>
-      <p class="sub">Which model answers users (System B). Per spec, Claude is the default — switchable here.</p>
-      <label>Provider</label>
-      <select name="chat_provider">
-        {% for p in ai.chat_providers %}<option value="{{ p }}" {% if p == ai.chat_provider %}selected{% endif %}>{{ p }}</option>{% endfor %}
-      </select>
-      <label style="margin-top:12px">Chat model id</label>
-      <input name="chat_model" value="{{ ai.chat_model }}" placeholder="claude-opus-4-8" />
+  <div class="panel">
+    <h3>Mentor models (per tier)</h3>
+    <p class="sub">The chat routes by tier: free → Haiku, paid → Sonnet. Validated against the Models API on save.</p>
+    <div class="grid2">
+      <div>
+        <label>Free tier model <small>(Seeker)</small></label>
+        <input name="model_free" value="{{ ai.model_free }}" placeholder="claude-haiku-4-5" />
+      </div>
+      <div>
+        <label>Paid tier model <small>(Abhyāsi / Sādhaka)</small></label>
+        <input name="model_paid" value="{{ ai.model_paid }}" placeholder="claude-sonnet-5" />
+      </div>
     </div>
+    <label style="margin-top:12px">Admin / recorder / baseline model</label>
+    <input name="model_admin" value="{{ ai.model_admin }}" placeholder="claude-sonnet-5" />
+  </div>
 
-    <div class="panel">
-      <h3>Embeddings &amp; transcription</h3>
-      <p class="sub">Used for ingestion (must stay 1536-dim) and the recorder.</p>
-      <label>Embedding model</label>
-      <input name="embedding_model" value="{{ ai.embedding_model }}" placeholder="text-embedding-3-small" />
-      <label style="margin-top:12px">Transcription model</label>
-      <input name="transcribe_model" value="{{ ai.transcribe_model }}" placeholder="gpt-4o-mini-transcribe" />
+  <div class="panel">
+    <h3>Embeddings &amp; transcription</h3>
+    <p class="sub">Embedding stays 1536-dim (do not change without re-embedding).</p>
+    <div class="grid2">
+      <div><label>Embedding model</label><input name="embedding_model" value="{{ ai.embedding_model }}" placeholder="text-embedding-3-small" /></div>
+      <div><label>Transcription model</label><input name="transcribe_model" value="{{ ai.transcribe_model }}" placeholder="gpt-4o-mini-transcribe" /></div>
     </div>
   </div>
 
@@ -52,7 +58,7 @@
     <h3>Baseline panel providers</h3>
     <p class="sub">Which models are queried for the commodity-floor panel in the recorder.</p>
     <div class="checks">
-      {% for p in ai.chat_providers %}
+      {% for p in ai.baseline_choices %}
       <label><input type="checkbox" name="baseline_providers" value="{{ p }}" {% if p in ai.baseline_providers %}checked{% endif %} /> {{ p }}</label>
       {% endfor %}
     </div>
@@ -60,14 +66,14 @@
 
   <div class="panel">
     <h3>API keys</h3>
-    <p class="sub">Paste a key to set/replace it. Leave blank to keep the current one. Tick “clear” to remove the DB key and fall back to the env var.</p>
+    <p class="sub">Paste a key to set/replace it (encrypted at rest). Leave blank to keep the current one. Tick “clear” to remove the DB key and fall back to the env var.</p>
     {% for p in ai.key_providers %}
       {% set st = ai.key_status[p] %}
       <div class="keyrow">
         <div class="keyhead">
           <span class="name">{{ p }}</span>
           <span class="src {{ st.source }}">{{ st.source }}</span>
-          {% if st.source == 'database' %}<span style="font-size:12px;opacity:.6">•••• set in DB</span>
+          {% if st.source == 'database' %}<span style="font-size:12px;opacity:.6">•••• set (encrypted)</span>
           {% elif st.source == 'environment' %}<span style="font-size:12px;opacity:.6">using env var</span>
           {% else %}<span style="font-size:12px;opacity:.6">not set</span>{% endif %}
         </div>
@@ -79,6 +85,6 @@
     {% endfor %}
   </div>
 
-  <button class="btn save" type="submit">Save AI settings</button>
+  <button class="btn" type="submit">Save AI settings</button>
 </form>
 {% endblock %}

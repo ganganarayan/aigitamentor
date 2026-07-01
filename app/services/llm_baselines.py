@@ -99,7 +99,7 @@ def call_provider(
     """Return (answer, error). Exactly one is non-None. Keys/models come from cfg."""
     try:
         if provider == "claude":
-            return _claude(question_text, cfg.key_for("anthropic"), cfg.chat_model), None
+            return _claude(question_text, cfg.key_for("anthropic"), cfg.model_admin), None
         if provider == "openai":
             return _openai(question_text, cfg.key_for("openai"), _OPENAI_MODEL), None
         if provider == "gemini":

@@ -23,6 +23,7 @@ alembic==1.14.0
 # --- Auth / security ---
 PyJWT==2.10.1
 bcrypt==4.2.1
+cryptography==44.0.0
 
 # --- LLM / embeddings ---
 anthropic==0.42.0
