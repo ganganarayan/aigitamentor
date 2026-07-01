@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ a.meta_title or a.question }}</title>
+<meta name="description" content="{{ a.meta_description or a.summary or '' }}">
+<meta name="robots" content="index, follow">
+{% if a.canonical_url %}<link rel="canonical" href="{{ a.canonical_url }}">{% endif %}
+<meta property="og:type" content="article">
+<meta property="og:title" content="{{ a.meta_title or a.question }}">
+<meta property="og:description" content="{{ a.meta_description or a.summary or '' }}">
+{% if a.canonical_url %}<meta property="og:url" content="{{ a.canonical_url }}">{% endif %}
+{% if a.faq_schema_json %}<script type="application/ld+json">{{ a.faq_schema_json | tojson }}</script>{% endif %}
+{% if a.breadcrumb_json %}<script type="application/ld+json">{{ a.breadcrumb_json | tojson }}</script>{% endif %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Cinzel:wght@500;600&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--saffron:#E8821A;--saffron-dk:#C4651A;--gold:#C9963B;--gold-lt:#F0C96A;--cream:#FAF3E8;--parchment:#F2E6CC;--dark:#2E1F0F;--ink:#3A2810;--ink-lt:#7A5C38}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Jost',sans-serif;font-weight:300;color:var(--ink);background:var(--cream);line-height:1.7}
+  a{color:var(--saffron-dk)}
+  .top{padding:16px 22px;background:#fff;border-bottom:1px solid rgba(201,150,59,.2);display:flex;align-items:center;gap:10px}
+  .top .om{color:var(--gold);font-size:22px}
+  .top .b{font-family:'Cinzel',serif;font-size:13px;letter-spacing:.12em;color:var(--dark)}
+  .top .sp{flex:1}
+  .top .cta{background:var(--saffron);color:#fff;text-decoration:none;padding:8px 18px;border-radius:999px;font-size:13px}
+  .wrap{max-width:720px;margin:0 auto;padding:26px 22px 60px}
+  .crumb{font-size:13px;color:var(--ink-lt);margin-bottom:14px}
+  .crumb a{text-decoration:none}
+  h1{font-family:'Cormorant Garamond',serif;font-weight:600;font-size:34px;color:var(--dark);line-height:1.18;margin-bottom:16px}
+  .body{font-size:17px}
+  .body p{margin-bottom:16px}
+  .verse{margin:22px 0;padding:16px 18px;background:#fff;border-left:3px solid var(--gold);border-radius:0 10px 10px 0}
+  .verse .ref{font-family:'Cinzel',serif;font-size:12px;letter-spacing:.1em;color:var(--saffron-dk)}
+  .verse .sk{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:18px;color:var(--dark);margin:6px 0}
+  .verse .tr{font-size:15px;color:var(--ink-lt)}
+  .cta-box{margin:30px 0 10px;padding:22px;background:var(--dark);border-radius:14px;text-align:center;color:var(--cream)}
+  .cta-box h3{font-family:'Cormorant Garamond',serif;font-weight:400;font-size:24px;color:var(--gold-lt);margin-bottom:6px}
+  .cta-box p{font-size:14px;color:rgba(242,230,204,.75);margin-bottom:14px}
+  .cta-box a{display:inline-block;background:var(--saffron);color:#fff;text-decoration:none;padding:11px 26px;border-radius:999px;font-size:14px}
+  .related{margin-top:34px;border-top:1px solid rgba(201,150,59,.25);padding-top:18px}
+  .related h4{font-family:'Cinzel',serif;font-size:12px;letter-spacing:.1em;color:var(--ink-lt);margin-bottom:10px}
+  .related a{display:block;padding:8px 0;text-decoration:none;color:var(--dark);border-bottom:1px solid rgba(58,40,16,.06)}
+  .disc{margin-top:24px;font-size:12px;color:var(--ink-lt);opacity:.75}
+  footer{border-top:1px solid rgba(201,150,59,.2);background:var(--dark);color:rgba(242,230,204,.7);text-align:center;padding:26px 22px;font-size:13px}
+  footer a{color:var(--gold-lt);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="top">
+  <span class="om">ॐ</span><span class="b">AI GITA MENTOR</span>
+  <span class="sp"></span>
+  <a class="cta" href="/app">Try the AI Mentor — free</a>
+</div>
+
+<article class="wrap">
+  <div class="crumb"><a href="/">Home</a> › <a href="/learn">Learn</a> › {{ a.question|truncate(60) }}</div>
+  <h1>{{ a.question }}</h1>
+
+  <div class="body">{{ a.answer_html | safe }}</div>
+
+  {% if verse %}
+  <div class="verse">
+    <div class="ref">Bhagavad Gītā {{ verse.verse_ref }}</div>
+    {% if verse.sanskrit %}<div class="sk">{{ verse.sanskrit }}</div>{% endif %}
+    {% if verse.translation %}<div class="tr">{{ verse.translation }}</div>{% endif %}
+  </div>
+  {% endif %}
+
+  <div class="cta-box">
+    <h3>This is a taste. Your situation is specific.</h3>
+    <p>The AI Gita Mentor names the mechanism beneath <em>your</em> problem and gives you one precise step — in the voice of Ganga Narayan Das.</p>
+    <a href="/app">Ask the mentor — free</a>
+  </div>
+
+  {% if related %}
+  <div class="related">
+    <h4>MORE ANSWERS</h4>
+    {% for r in related %}<a href="/learn/{{ r.slug }}">{{ r.question }}</a>{% endfor %}
+  </div>
+  {% endif %}
+
+  <p class="disc">Spiritual guidance rooted in the Bhagavad Gita and the Neuro-Acoustic Protocol — not therapy, medical, legal, or financial advice. For readers 18+.</p>
+</article>
+
+<footer>
+  A digital extension of <a href="https://ganganarayandas.com/">Ganga Narayan Das</a> ·
+  <a href="https://applygitawisdom.com/">Apply Gita Wisdom</a> ·
+  <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a>
+</footer>
+</body>
+</html>

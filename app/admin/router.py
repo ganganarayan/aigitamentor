@@ -19,6 +19,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.auth.deps import require_admin
+from app.config import settings
 from app.db import get_db
 from app.models import (
     AiConfig,
@@ -32,6 +33,7 @@ from app.models import (
     LlmBaseline,
     Message,
     Payment,
+    PublicKbArticle,
     Question,
     Recording,
     ResourceGrant,
@@ -45,6 +47,7 @@ from app.services import ai_settings
 from app.services import chat as chat_service
 from app.services import ingestion
 from app.services import llm_baselines
+from app.services import public_kb
 from app.services import recordings as rec_service
 from app.services.seed import seed_starter
 from app.templating import templates
@@ -866,3 +869,53 @@ def videos_delete(video_id: int, user: User = Depends(require_admin), db: Sessio
         db.delete(v)
         db.commit()
     return RedirectResponse("/admin/videos", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# --- Public KB (Phase 7): promote Seeker answers to the crawlable /learn ------
+
+@router.get("/public", response_class=HTMLResponse)
+def public_kb_page(
+    request: Request, err: str = "", user: User = Depends(require_admin), db: Session = Depends(get_db)
+):
+    articles = list(
+        db.execute(select(PublicKbArticle).order_by(PublicKbArticle.id.desc())).scalars()
+    )
+    return templates.TemplateResponse(
+        "admin/public.html",
+        {"request": request, "user": user, "articles": articles,
+         "base": settings.app_base_url.rstrip("/"), "err": err},
+    )
+
+
+@router.post("/answers/{answer_id}/publish")
+def public_kb_publish(answer_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    _article, err = public_kb.publish_answer(db, answer_id)
+    dest = "/admin/public"
+    if err:
+        from urllib.parse import quote
+
+        dest += "?err=" + quote(err)
+    return RedirectResponse(dest, status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/public/{article_id}/unpublish")
+def public_kb_unpublish(article_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    public_kb.unpublish(db, article_id)
+    return RedirectResponse("/admin/public", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/public/{article_id}/republish")
+def public_kb_republish(article_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    art = db.get(PublicKbArticle, article_id)
+    if art is not None and art.source_answer_id:
+        public_kb.publish_answer(db, art.source_answer_id)
+    return RedirectResponse("/admin/public", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/public/{article_id}/delete")
+def public_kb_delete(article_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    art = db.get(PublicKbArticle, article_id)
+    if art is not None:
+        db.delete(art)
+        db.commit()
+    return RedirectResponse("/admin/public", status_code=status.HTTP_303_SEE_OTHER)

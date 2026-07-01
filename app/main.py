@@ -87,7 +87,7 @@ async def host_router(request: Request, call_next):
             # The app host is the product, not the marketing site.
             if path == "/":
                 return RedirectResponse("/app", status_code=307)
-            if path in _PUBLIC_PATHS:
+            if path in _PUBLIC_PATHS or path == "/learn" or path.startswith("/learn/"):
                 return RedirectResponse(settings.app_base_url.rstrip("/") + path, status_code=308)
     return await call_next(request)
 

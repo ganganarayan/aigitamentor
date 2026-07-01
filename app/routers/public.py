@@ -13,7 +13,8 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
 from app.config import settings
 from app.db import SessionLocal
-from app.services import meta
+from app.models import Verse
+from app.services import meta, public_kb
 from app.templating import templates
 
 router = APIRouter(tags=["public"])
@@ -47,6 +48,50 @@ def _legal(template: str):
         return templates.TemplateResponse(template, {"request": request})
 
     return _render
+
+
+# Public Knowledge Graph — crawlable /learn (Phase 7). Seeker-depth only; built
+# from published seeker answers, meant to be cited. pgvector is never exposed here.
+@router.get("/learn", response_class=HTMLResponse)
+def learn_index(request: Request):
+    articles = []
+    if SessionLocal is not None:
+        try:
+            with SessionLocal() as db:
+                articles = public_kb.published_articles(db)
+        except Exception:  # noqa: BLE001 — a public page must not 500 on a cold DB
+            articles = []
+    return templates.TemplateResponse(
+        "learn/index.html",
+        {"request": request, "app_name": settings.app_name, "articles": articles,
+         "app_base_url": settings.app_base_url.rstrip("/")},
+    )
+
+
+@router.get("/learn/{slug}", response_class=HTMLResponse)
+def learn_article(slug: str, request: Request):
+    article = verse = None
+    related: list = []
+    if SessionLocal is not None:
+        try:
+            with SessionLocal() as db:
+                article = public_kb.get_published(db, slug)
+                if article is not None:
+                    verse = db.get(Verse, article.primary_verse_id) if article.primary_verse_id else None
+                    related = [r for r in public_kb.published_articles(db, limit=7) if r.id != article.id][:6]
+                db.expunge_all()  # detach for template use after the session closes
+        except Exception:  # noqa: BLE001
+            article = None
+    if article is None:
+        return templates.TemplateResponse(
+            "learn/not_found.html", {"request": request}, status_code=404
+        )
+    return templates.TemplateResponse(
+        "learn/article.html",
+        {"request": request, "a": article, "verse": verse, "related": related,
+         "app_url": (settings.app_url or settings.app_base_url).rstrip("/"),
+         "app_base_url": settings.app_base_url.rstrip("/")},
+    )
 
 
 router.add_api_route("/privacy", _legal("legal/privacy.html"), response_class=HTMLResponse, tags=["public"])

@@ -31,6 +31,9 @@
       <td>
         <div class="rowacts">
           <a class="btn" href="/admin/answers/{{ r.answer.id }}/edit">Edit</a>
+          {% if r.answer.tier == 'seeker' and r.answer.status == 'published' %}
+          <form method="post" action="/admin/answers/{{ r.answer.id }}/publish"><button class="btn" type="submit" title="Create or refresh the public /learn article">→ /learn</button></form>
+          {% endif %}
           <form method="post" action="/admin/answers/{{ r.answer.id }}/delete" onsubmit="return confirm('Delete this answer and its chunks?')"><button class="btn secondary" type="submit">Delete</button></form>
         </div>
       </td>

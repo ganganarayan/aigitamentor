@@ -1,0 +1,47 @@
+{% extends "admin/base.html" %}
+{% block title %}Public KB · Knowledge Studio{% endblock %}
+{% block styles %}
+  .st-pub{background:#e3f5e6;color:#1c6b2e}
+  .st-un{background:#f3f1ea;color:#6b6356}
+  .rowacts{display:flex;gap:8px;flex-wrap:wrap}
+  .err{background:#fdecea;color:#8a1c12;border:1px solid #f5c6c0;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:14px}
+  .muted{opacity:.7;font-size:14px}
+{% endblock %}
+{% block body %}
+<h1>Public Knowledge Graph <span class="muted">· /learn</span></h1>
+<p class="muted" style="margin-top:-6px">
+  The crawlable, citable free layer. Only <strong>Seeker-tier</strong>, <strong>published</strong> answers
+  can be promoted here (paid depth and the pgvector corpus are never exposed). Promote answers from the
+  <a href="/admin/answers">Answers</a> page; refresh one here after you edit its source answer.
+</p>
+
+{% if err %}<div class="err">{{ err }}</div>{% endif %}
+
+{% if articles %}
+<table>
+  <thead><tr><th style="width:44px">#</th><th>Question</th><th style="width:150px">Slug</th><th style="width:90px">Status</th><th style="width:230px"></th></tr></thead>
+  <tbody>
+  {% for a in articles %}
+    <tr>
+      <td>{{ a.id }}</td>
+      <td>{{ a.question }}</td>
+      <td><code style="font-size:12px">{{ a.slug }}</code></td>
+      <td><span class="pill {{ 'st-pub' if a.published else 'st-un' }}">{{ 'live' if a.published else 'unpublished' }}</span></td>
+      <td>
+        <div class="rowacts">
+          {% if a.published %}<a class="btn secondary" href="{{ base }}/learn/{{ a.slug }}" target="_blank" rel="noopener">View</a>{% endif %}
+          <form method="post" action="/admin/public/{{ a.id }}/republish"><button class="btn" type="submit" title="Rebuild from the source answer">Refresh</button></form>
+          {% if a.published %}
+          <form method="post" action="/admin/public/{{ a.id }}/unpublish"><button class="btn secondary" type="submit">Unpublish</button></form>
+          {% endif %}
+          <form method="post" action="/admin/public/{{ a.id }}/delete" onsubmit="return confirm('Delete this public article? The source answer is untouched.')"><button class="btn secondary" type="submit">Delete</button></form>
+        </div>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="card"><p>No public articles yet. Publish a Seeker answer from <a href="/admin/answers">Answers</a> → <strong>→ /learn</strong>.</p></div>
+{% endif %}
+{% endblock %}
