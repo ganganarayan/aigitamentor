@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import datetime as dt
+
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -12,7 +14,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
@@ -22,6 +24,7 @@ from app.models import (
     AiConfig,
     Contact,
     Conversation,
+    Generation,
     KbAnswer,
     KbChunk,
     KbSource,
@@ -135,12 +138,76 @@ def dashboard(request: Request, user: User = Depends(require_admin), db: Session
     )
 
 
+_TIERS = ["seeker", "abhyasi", "sadhaka"]
+
+
 @router.get("/users", response_class=HTMLResponse)
 def users_list(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    rows = list(db.execute(select(User).order_by(User.id.desc()).limit(300)).scalars())
+    users = list(db.execute(select(User).order_by(User.id.desc()).limit(300)).scalars())
+    cfg = ai_settings.resolved(db)
+    rows = []
+    for u in users:
+        tokens = db.execute(
+            select(
+                func.coalesce(
+                    func.sum(func.coalesce(Generation.tokens_in, 0) + func.coalesce(Generation.tokens_out, 0)),
+                    0,
+                )
+            ).where(Generation.user_id == u.id)
+        ).scalar_one()
+        amount = db.execute(
+            select(func.coalesce(func.sum(Payment.amount), 0)).where(
+                Payment.user_id == u.id, Payment.status.in_(("captured", "paid"))
+            )
+        ).scalar_one()
+        rows.append(
+            {"u": u, "tokens": int(tokens or 0), "amount": float(amount or 0), "model": cfg.chat_model_for_tier(u.tier)}
+        )
     return templates.TemplateResponse(
         "admin/users.html", {"request": request, "user": user, "rows": rows}
     )
+
+
+@router.get("/users/{user_id}/edit", response_class=HTMLResponse)
+def user_edit_page(
+    request: Request, user_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)
+):
+    target = db.get(User, user_id)
+    if target is None:
+        return RedirectResponse("/admin/users", status_code=status.HTTP_303_SEE_OTHER)
+    return templates.TemplateResponse(
+        "admin/user_edit.html",
+        {"request": request, "user": user, "target": target, "tiers": _TIERS, "roles": ["user", "admin"]},
+    )
+
+
+@router.post("/users/{user_id}/edit")
+def user_edit_save(
+    user_id: int,
+    tier: str = Form("seeker"),
+    role: str = Form("user"),
+    plan_expires: str = Form(""),
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    target = db.get(User, user_id)
+    if target is None:
+        return RedirectResponse("/admin/users", status_code=status.HTTP_303_SEE_OTHER)
+    if tier in _TIERS:
+        target.tier = tier
+    if role in ("user", "admin"):
+        target.role = role
+    plan_expires = plan_expires.strip()
+    if plan_expires:
+        try:
+            d = dt.date.fromisoformat(plan_expires)
+            target.plan_expires_at = dt.datetime(d.year, d.month, d.day, 23, 59, tzinfo=dt.timezone.utc)
+        except ValueError:
+            pass
+    else:
+        target.plan_expires_at = None
+    db.commit()
+    return RedirectResponse("/admin/users", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/recorder", response_class=HTMLResponse)
@@ -482,11 +549,23 @@ def settings_page(
     )
 
 
+@router.get("/models", response_class=JSONResponse)
+def admin_models(
+    provider: str = "anthropic",
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Live list of available model ids for a provider (populates the pickers)."""
+    return JSONResponse({"models": ai_settings.list_provider_models(db, provider)})
+
+
 @router.post("/settings")
 def settings_save(
+    provider: str = Form("anthropic"),
     model_admin: str = Form(""),
-    model_free: str = Form(""),
-    model_paid: str = Form(""),
+    model_seeker: str = Form(""),
+    model_abhyasi: str = Form(""),
+    model_sadhaka: str = Form(""),
     embedding_model: str = Form(""),
     transcribe_model: str = Form(""),
     baseline_providers: list[str] = Form(default=[]),
@@ -501,7 +580,6 @@ def settings_save(
     user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    # Apply any new keys first so validation can use them.
     key_updates = {
         "anthropic": anthropic_api_key.strip(),
         "openai": openai_api_key.strip(),
@@ -509,8 +587,8 @@ def settings_save(
         "perplexity": perplexity_api_key.strip(),
     }
     key_clears = [
-        provider
-        for provider, flag in [
+        prov
+        for prov, flag in [
             ("anthropic", clear_anthropic),
             ("openai", clear_openai),
             ("gemini", clear_gemini),
@@ -518,19 +596,20 @@ def settings_save(
         ]
         if flag
     ]
-    models = [model_admin.strip(), model_free.strip(), model_paid.strip()]
+    models = [model_admin.strip(), model_seeker.strip(), model_abhyasi.strip(), model_sadhaka.strip()]
     ai_settings.update(
         db,
+        provider=provider.strip(),
         model_admin=model_admin.strip(),
-        model_free=model_free.strip(),
-        model_paid=model_paid.strip(),
+        model_seeker=model_seeker.strip(),
+        model_abhyasi=model_abhyasi.strip(),
+        model_sadhaka=model_sadhaka.strip(),
         embedding_model=embedding_model.strip(),
         transcribe_model=transcribe_model.strip(),
         baseline_providers=baseline_providers,
         key_updates=key_updates,
         key_clears=key_clears,
     )
-    # Validate chat model ids against the Models API (typos can't silently break chat).
     error = ai_settings.validate_chat_models(db, models)
     if error:
         return RedirectResponse(f"/admin/settings?error={error}", status_code=status.HTTP_303_SEE_OTHER)

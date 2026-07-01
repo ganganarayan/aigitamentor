@@ -13,13 +13,25 @@
   {% else %}Active: <strong>version {{ active.version }}</strong>. Saving creates a new version and activates it (old versions are kept).{% endif %}
 </p>
 <form method="post" action="/admin/ai-config">
-  <textarea name="system_prompt">{{ prompt }}</textarea>
+  <textarea name="system_prompt" id="promptEditor" readonly>{{ prompt }}</textarea>
   <div class="row">
-    <span><label style="display:inline">Temperature</label> <input name="temperature" value="{{ active.temperature if active else 0.7 }}" style="width:70px"></span>
-    <span><label style="display:inline">Top-k</label> <input name="top_k" value="{{ active.top_k if active else 8 }}" style="width:70px"></span>
-    <button class="btn" type="submit">Save &amp; activate new version</button>
+    <span><label style="display:inline">Temperature</label> <input name="temperature" class="cfgnum" value="{{ active.temperature if active else 0.7 }}" style="width:70px" readonly></span>
+    <span><label style="display:inline">Top-k</label> <input name="top_k" class="cfgnum" value="{{ active.top_k if active else 8 }}" style="width:70px" readonly></span>
+    <button class="btn secondary" type="button" id="editBtn" onclick="unlockEditor()">✎ Edit</button>
+    <button class="btn" type="submit" id="saveBtn" disabled>Save &amp; activate new version</button>
   </div>
+  <p id="lockNote" style="font-size:12px;opacity:.6;margin-top:8px">Editor is locked. Click <strong>Edit</strong> to make changes.</p>
 </form>
+<script>
+  function unlockEditor(){
+    document.getElementById('promptEditor').removeAttribute('readonly');
+    document.querySelectorAll('.cfgnum').forEach(el=>el.removeAttribute('readonly'));
+    document.getElementById('saveBtn').disabled=false;
+    document.getElementById('editBtn').style.display='none';
+    document.getElementById('lockNote').textContent='Editing enabled — Save creates a new active version.';
+    document.getElementById('promptEditor').focus();
+  }
+</script>
 <p style="font-size:12px;opacity:.6;margin-top:10px">Runtime variables in {curly braces} — {user_name}, {user_age}, {user_profession}, {user_gender}, {user_tier}, {assessment_band}, {retrieved_context}, {conversation_memory} — are filled per turn. Keep them intact.</p>
 {% if versions %}<div class="vers">Versions: {% for v in versions %}{{ v.version }}{% if v.active %} (active){% endif %}{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
 {% endblock %}

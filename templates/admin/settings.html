@@ -2,11 +2,14 @@
 {% block title %}Settings · AI · Knowledge Studio{% endblock %}
 
 {% block styles %}
-  .grid2 { display:grid; gap:16px; grid-template-columns: 1fr 1fr; }
-  @media (max-width:760px){ .grid2 { grid-template-columns:1fr; } }
+  .grid2 { display:grid; gap:16px; grid-template-columns: 1fr 1fr; align-items:start; }
+  @media (max-width:820px){ .grid2 { grid-template-columns:1fr; } }
   .panel { background:#fff; border:1px solid rgba(201,150,59,.25); border-radius:12px; padding:18px; margin-bottom:18px; }
   .panel h3 { margin:0 0 6px; }
   .panel p.sub { margin:0 0 14px; font-size:13px; opacity:.7; }
+  .field { margin-bottom:12px; }
+  .field label { display:block; font-size:13px; margin:0 0 5px; }
+  .field label small { opacity:.6; }
   .src { font-size:12px; padding:2px 8px; border-radius:999px; }
   .src.database { background:#e3f5e6; color:#1c6b2e; }
   .src.environment { background:#eaf0fb; color:#274b8a; }
@@ -15,42 +18,68 @@
   .keyrow:first-of-type { border-top:0; }
   .keyhead { display:flex; align-items:center; gap:10px; }
   .keyhead .name { font-weight:600; text-transform:capitalize; }
+  .keywrap { position:relative; margin-top:8px; }
+  .keywrap input { width:100%; padding-right:44px; }
+  .eye { position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; font-size:16px; opacity:.6; }
+  .eye:hover { opacity:1; }
   .clearbox { font-size:12px; opacity:.8; margin-top:8px; display:inline-flex; align-items:center; gap:6px; }
   .checks { display:flex; gap:16px; flex-wrap:wrap; }
   .checks label { display:inline-flex; align-items:center; gap:6px; margin:0; }
   .err { background:#fdecea; color:#8a1c12; border-radius:10px; padding:11px 14px; margin-bottom:16px; font-size:14px; }
-  label small { opacity:.6; }
+  .provider-row { display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+  .provider-row select { width:auto; }
+  #modelHint { font-size:12px; opacity:.6; }
 {% endblock %}
 
 {% block body %}
 <h1>Settings — AI</h1>
-<p style="opacity:.7;font-size:14px;margin-top:-6px">Runtime-selectable — no redeploy. Each value uses what you set here; blank falls back to the environment variable. Keys are encrypted in the database and never shown back (only set/unset + source).</p>
+<p style="opacity:.7;font-size:14px;margin-top:-6px">Runtime-selectable — no redeploy. Blank falls back to the environment variable. Keys are encrypted in the database and never shown back.</p>
 {% if error %}<div class="err">{{ error }}</div>{% endif %}
 
 <form method="post" action="/admin/settings">
-  <div class="panel">
-    <h3>Mentor models (per tier)</h3>
-    <p class="sub">The chat routes by tier: free → Haiku, paid → Sonnet. Validated against the Models API on save.</p>
-    <div class="grid2">
-      <div>
-        <label>Free tier model <small>(Seeker)</small></label>
-        <input name="model_free" value="{{ ai.model_free }}" placeholder="claude-haiku-4-5" />
-      </div>
-      <div>
-        <label>Paid tier model <small>(Abhyāsi / Sādhaka)</small></label>
-        <input name="model_paid" value="{{ ai.model_paid }}" placeholder="claude-sonnet-5" />
+  <div class="provider-row">
+    <label style="margin:0"><strong>Provider</strong></label>
+    <select id="provider" name="provider" onchange="loadModels()">
+      {% for p in ai.key_providers %}<option value="{{ p }}" {% if p == ai.provider %}selected{% endif %}>{{ p }}</option>{% endfor %}
+    </select>
+    <span id="modelHint">Pick a model per tier from this provider's live list (or type a custom id).</span>
+  </div>
+  <datalist id="modellist"></datalist>
+
+  <div class="grid2">
+    <div class="panel">
+      <h3>Admin panel</h3>
+      <p class="sub">Model for the recorder / LLM baseline panel (admin-side).</p>
+      <div class="field">
+        <label>Admin &amp; recorder model</label>
+        <input list="modellist" name="model_admin" value="{{ ai.model_admin }}" placeholder="claude-sonnet-5" />
       </div>
     </div>
-    <label style="margin-top:12px">Admin / recorder / baseline model</label>
-    <input name="model_admin" value="{{ ai.model_admin }}" placeholder="claude-sonnet-5" />
+
+    <div class="panel">
+      <h3>User panel — mentor models per tier</h3>
+      <p class="sub">Which model answers each tier (System B).</p>
+      <div class="field">
+        <label>Seeker <small>(free)</small></label>
+        <input list="modellist" name="model_seeker" value="{{ ai.model_seeker }}" placeholder="claude-haiku-4-5" />
+      </div>
+      <div class="field">
+        <label>Abhyāsi <small>(₹499)</small></label>
+        <input list="modellist" name="model_abhyasi" value="{{ ai.model_abhyasi }}" placeholder="claude-sonnet-5" />
+      </div>
+      <div class="field">
+        <label>Sādhaka <small>(₹1,459)</small></label>
+        <input list="modellist" name="model_sadhaka" value="{{ ai.model_sadhaka }}" placeholder="claude-sonnet-5" />
+      </div>
+    </div>
   </div>
 
   <div class="panel">
     <h3>Embeddings &amp; transcription</h3>
     <p class="sub">Embedding stays 1536-dim (do not change without re-embedding).</p>
     <div class="grid2">
-      <div><label>Embedding model</label><input name="embedding_model" value="{{ ai.embedding_model }}" placeholder="text-embedding-3-small" /></div>
-      <div><label>Transcription model</label><input name="transcribe_model" value="{{ ai.transcribe_model }}" placeholder="gpt-4o-mini-transcribe" /></div>
+      <div class="field"><label>Embedding model</label><input name="embedding_model" value="{{ ai.embedding_model }}" placeholder="text-embedding-3-small" /></div>
+      <div class="field"><label>Transcription model</label><input name="transcribe_model" value="{{ ai.transcribe_model }}" placeholder="gpt-4o-mini-transcribe" /></div>
     </div>
   </div>
 
@@ -66,7 +95,7 @@
 
   <div class="panel">
     <h3>API keys</h3>
-    <p class="sub">Paste a key to set/replace it (encrypted at rest). Leave blank to keep the current one. Tick “clear” to remove the DB key and fall back to the env var.</p>
+    <p class="sub">Paste a key to set/replace it (encrypted at rest). The eye reveals what you type; the stored key is never shown. Leave blank to keep the current one.</p>
     {% for p in ai.key_providers %}
       {% set st = ai.key_status[p] %}
       <div class="keyrow">
@@ -77,7 +106,10 @@
           {% elif st.source == 'environment' %}<span style="font-size:12px;opacity:.6">using env var</span>
           {% else %}<span style="font-size:12px;opacity:.6">not set</span>{% endif %}
         </div>
-        <input type="password" name="{{ p }}_api_key" autocomplete="new-password" placeholder="Paste new {{ p }} key to set/replace" style="margin-top:8px" />
+        <div class="keywrap">
+          <input type="password" id="key_{{ p }}" name="{{ p }}_api_key" autocomplete="new-password" placeholder="Paste new {{ p }} key to set/replace" />
+          <button type="button" class="eye" onclick="toggleKey('key_{{ p }}',this)" aria-label="show/hide">👁</button>
+        </div>
         {% if st.db_set %}
         <label class="clearbox"><input type="checkbox" name="clear_{{ p }}" value="1" /> clear DB key{% if st.env_set %} (revert to env var){% endif %}</label>
         {% endif %}
@@ -87,4 +119,21 @@
 
   <button class="btn" type="submit">Save AI settings</button>
 </form>
+
+<script>
+  function toggleKey(id, btn){ const el=document.getElementById(id); if(!el) return; el.type = el.type==='password'?'text':'password'; btn.style.opacity = el.type==='text'?1:0.6; }
+  async function loadModels(){
+    const prov=document.getElementById('provider').value;
+    const dl=document.getElementById('modellist');
+    const hint=document.getElementById('modelHint');
+    hint.textContent='Loading available models…';
+    try{
+      const r=await fetch('/admin/models?provider='+encodeURIComponent(prov));
+      const data=await r.json();
+      dl.innerHTML=(data.models||[]).map(m=>'<option value="'+m+'"></option>').join('');
+      hint.textContent = (data.models&&data.models.length) ? ('Choose from '+data.models.length+' '+prov+' models (or type a custom id).') : ('No models listed — check the '+prov+' key, or type a custom id.');
+    }catch(e){ hint.textContent='Could not load models — type a custom id.'; }
+  }
+  loadModels();
+</script>
 {% endblock %}

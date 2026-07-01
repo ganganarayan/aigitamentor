@@ -6,17 +6,33 @@
   <meta name="robots" content="noindex, nofollow" />
   <title>{% block title %}Knowledge Studio · AI Gita Mentor{% endblock %}</title>
   <style>
-    :root { --saffron:#E8821A; --gold:#C9963B; --cream:#FAF3E8; --parchment:#F2E6CC; --dark:#2E1F0F; --ink:#3A2810; }
+    :root { --saffron:#E8821A; --gold:#C9963B; --gold-lt:#F0C96A; --cream:#FAF3E8; --parchment:#F2E6CC; --dark:#2E1F0F; --dark2:#241708; --ink:#3A2810; }
     * { box-sizing: border-box; }
     body { margin:0; font-family: system-ui, sans-serif; color: var(--ink); background:#FBF7EF; }
-    header.top { display:flex; align-items:center; gap:18px; padding:12px 22px; background:var(--dark); color:var(--cream); }
-    header.top .brand { font-weight:700; letter-spacing:.04em; }
-    header.top nav { display:flex; gap:16px; flex-wrap:wrap; }
-    header.top nav a { color:#F0C96A; text-decoration:none; font-size:14px; }
-    header.top nav a:hover { color:#fff; }
-    header.top .spacer { flex:1; }
-    header.top .who { font-size:13px; opacity:.85; }
-    main { max-width: 1040px; margin: 0 auto; padding: 28px 22px 64px; }
+    a { color: var(--saffron); }
+
+    /* layout */
+    .shell { display:flex; min-height:100vh; }
+    .side { width:216px; flex-shrink:0; background:var(--dark); color:var(--cream); display:flex; flex-direction:column; position:sticky; top:0; height:100vh; transition:width .22s ease, transform .22s ease; overflow:hidden; }
+    .side .brand { display:flex; align-items:center; gap:8px; padding:14px 16px; border-bottom:1px solid rgba(201,150,59,.15); white-space:nowrap; }
+    .side .brand .om { color:var(--gold); font-size:20px; }
+    .side .brand .txt { font-weight:700; letter-spacing:.03em; font-size:14px; }
+    .side nav { flex:1; padding:10px 8px; overflow-y:auto; }
+    .side nav a { display:block; padding:9px 12px; margin-bottom:2px; border-radius:8px; color:rgba(242,230,204,.72); text-decoration:none; font-size:14px; white-space:nowrap; }
+    .side nav a:hover { background:rgba(242,230,204,.07); color:#fff; }
+    .side .who { padding:12px 16px; border-top:1px solid rgba(201,150,59,.15); font-size:12px; color:rgba(242,230,204,.5); white-space:nowrap; }
+    .side .who a { color:var(--gold-lt); text-decoration:none; }
+    .toggle { position:absolute; top:12px; right:8px; background:rgba(242,230,204,.08); border:none; color:var(--gold-lt); cursor:pointer; width:26px; height:26px; border-radius:6px; font-size:13px; }
+    .toggle:hover { background:rgba(242,230,204,.16); }
+    /* collapsed */
+    body.nav-collapsed .side { width:0; }
+    .reopen { display:none; position:fixed; top:12px; left:12px; z-index:60; background:var(--dark); color:var(--gold-lt); border:none; width:32px; height:32px; border-radius:8px; cursor:pointer; font-size:14px; box-shadow:0 3px 10px rgba(0,0,0,.2); }
+    body.nav-collapsed .reopen { display:block; }
+
+    main { flex:1; min-width:0; }
+    .content { max-width: 1040px; margin: 0 auto; padding: 28px 24px 64px; }
+    body.nav-collapsed .content { padding-left:52px; }
+
     h1 { font-size: 24px; margin: 0 0 18px; color: var(--dark); }
     .btn { display:inline-block; padding:9px 18px; background:var(--saffron); color:#fff; border:0; border-radius:8px; font:inherit; cursor:pointer; text-decoration:none; }
     .btn.secondary { background:#fff; color:var(--ink); border:1px solid rgba(58,40,16,.2); }
@@ -35,27 +51,37 @@
   </style>
 </head>
 <body>
-  <header class="top">
-    <span class="brand">ॐ Knowledge Studio</span>
-    <nav>
-      <a href="/admin">Dashboard</a>
-      <a href="/admin/recorder">Recorder</a>
-      <a href="/admin/recordings">Recordings</a>
-      <a href="/admin/answers">Answers</a>
-      <a href="/admin/embeddings">Embeddings</a>
-      <a href="/admin/conversations">Conversations</a>
-      <a href="/admin/users">Users</a>
-      <a href="/admin/contacts">Contacts</a>
-      <a href="/admin/revenue">Revenue</a>
-      <a href="/admin/ai-config">AI Config</a>
-      <a href="/admin/settings">Settings</a>
-    </nav>
-    <span class="spacer"></span>
-    <span class="who">{{ user.email if user else '' }}</span>
-    <nav><a href="/logout">Logout</a></nav>
-  </header>
-  <main>
-    {% block body %}{% endblock %}
-  </main>
+  <button class="reopen" onclick="toggleNav()" title="Open menu">»</button>
+  <div class="shell">
+    <aside class="side" id="side">
+      <div class="brand"><span class="om">ॐ</span> <span class="txt">Knowledge Studio</span>
+        <button class="toggle" onclick="toggleNav()" title="Collapse menu">«</button>
+      </div>
+      <nav>
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/recorder">Recorder</a>
+        <a href="/admin/recordings">Recordings</a>
+        <a href="/admin/answers">Answers</a>
+        <a href="/admin/embeddings">Embeddings</a>
+        <a href="/admin/conversations">Conversations</a>
+        <a href="/admin/users">Users</a>
+        <a href="/admin/contacts">Contacts</a>
+        <a href="/admin/revenue">Revenue</a>
+        <a href="/admin/ai-config">AI Config</a>
+        <a href="/admin/settings">Settings</a>
+      </nav>
+      <div class="who">{{ user.email if user else '' }}<br><a href="/logout">Logout</a></div>
+    </aside>
+    <main>
+      <div class="content">
+        {% block body %}{% endblock %}
+      </div>
+    </main>
+  </div>
+  <script>
+    function applyNav(){ document.body.classList.toggle('nav-collapsed', localStorage.getItem('agm_nav')==='closed'); }
+    function toggleNav(){ const closed=localStorage.getItem('agm_nav')==='closed'; localStorage.setItem('agm_nav', closed?'open':'closed'); applyNav(); }
+    applyNav();
+  </script>
 </body>
 </html>

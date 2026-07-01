@@ -146,7 +146,7 @@ def extract_profile(db: Session, text: str) -> dict:
 
         client = anthropic.Anthropic(api_key=key)
         resp = client.messages.create(
-            model=cfg.model_free,  # cheap (Haiku) for extraction
+            model=cfg.model_seeker,  # cheap (Haiku) for extraction
             max_tokens=200,
             system=(
                 "Extract the user's age, profession, and gender from their message. Reply with ONLY a "

@@ -34,6 +34,8 @@ class User(Base, PkMixin, TimestampMixin):
     profession: Mapped[str | None] = mapped_column(String(160))
     gender: Mapped[str | None] = mapped_column(String(40))
     onboarded: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    # Admin-set / subscription plan end date (auto-downgrade to seeker once past).
+    plan_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Subscription(Base, PkMixin, TimestampMixin):

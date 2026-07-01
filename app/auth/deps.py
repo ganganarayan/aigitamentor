@@ -30,6 +30,13 @@ def current_user(request: Request, db: Session = Depends(get_db)) -> User | None
     user = get_by_id(db, user_id)
     if user is None or user.status != "active":
         return None
+    # Auto-downgrade once an admin-set/subscription plan end date has passed.
+    if user.tier != "seeker" and user.plan_expires_at is not None:
+        import datetime as _dt
+
+        if user.plan_expires_at < _dt.datetime.now(tz=_dt.timezone.utc):
+            user.tier = "seeker"
+            db.commit()
     return user
 
 

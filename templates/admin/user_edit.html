@@ -1,0 +1,30 @@
+{% extends "admin/base.html" %}
+{% block title %}Edit user · Knowledge Studio{% endblock %}
+{% block styles %}
+  .panel{background:#fff;border:1px solid rgba(201,150,59,.25);border-radius:12px;padding:20px;max-width:520px}
+  .row{display:flex;gap:16px;flex-wrap:wrap}
+  .row > div{flex:1;min-width:150px}
+{% endblock %}
+{% block body %}
+<p><a href="/admin/users">← All users</a></p>
+<h1>Edit user</h1>
+<div class="panel">
+  <p style="margin-top:0;font-size:14px;opacity:.8">{{ target.email }}{% if target.name %} · {{ target.name }}{% endif %}</p>
+  <form method="post" action="/admin/users/{{ target.id }}/edit">
+    <div class="row">
+      <div>
+        <label>Plan (tier)</label>
+        <select name="tier">{% for t in tiers %}<option value="{{ t }}" {% if t == target.tier %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+      </div>
+      <div>
+        <label>Role</label>
+        <select name="role">{% for r in roles %}<option value="{{ r }}" {% if r == target.role %}selected{% endif %}>{{ r }}</option>{% endfor %}</select>
+      </div>
+    </div>
+    <label style="margin-top:12px">Plan end date</label>
+    <input type="date" name="plan_expires" value="{{ target.plan_expires_at.strftime('%Y-%m-%d') if target.plan_expires_at else '' }}" />
+    <p style="font-size:12px;opacity:.6;margin:6px 0 16px">Leave blank for no end date. Once past, the user auto-reverts to Seeker on their next request.</p>
+    <button class="btn" type="submit">Save changes</button>
+  </form>
+</div>
+{% endblock %}

@@ -2,17 +2,19 @@
 
 Stored as a single ``settings`` row (key='ai_runtime', jsonb value). The admin
 sets, at runtime (Settings → AI), without redeploy:
+  - provider     : which provider the model pickers list from (default anthropic)
   - model_admin  : model for the recorder / LLM baseline panel
-  - model_free   : mentor model for the free tier   (default claude-haiku-4-5)
-  - model_paid   : mentor model for paid tiers       (default claude-sonnet-5)
+  - model_seeker : mentor model for the free tier   (default claude-haiku-4-5)
+  - model_abhyasi: mentor model for Abhyāsi          (default claude-sonnet-5)
+  - model_sadhaka: mentor model for Sādhaka          (default claude-sonnet-5)
   - embedding_model (locked 1536-dim) · transcribe_model
   - baseline_providers · API keys (per provider)
 
 Resolution precedence for every value: DB override if set, else the env var.
 
 **API keys are encrypted at rest** (Fernet, key derived from JWT_SECRET) and are
-never returned to the client or written to logs — the UI shows only set/unset.
-Legacy plaintext keys are read transparently and re-encrypted on next save.
+never returned to the client or written to logs. Legacy plaintext keys are read
+transparently and re-encrypted on next save.
 """
 
 from __future__ import annotations
@@ -57,24 +59,30 @@ def _decrypt(value: str | None) -> str | None:
         except InvalidToken:
             logger.warning("Stored API key failed to decrypt (JWT_SECRET changed?).")
             return None
-    return value  # legacy plaintext — transparently readable, re-encrypted on next save
+    return value  # legacy plaintext — readable, re-encrypted on next save
 
 
 @dataclass
 class AiRuntime:
+    provider: str
     model_admin: str
-    model_free: str
-    model_paid: str
+    model_seeker: str
+    model_abhyasi: str
+    model_sadhaka: str
     embedding_model: str
     transcribe_model: str
     baseline_providers: list[str]
-    keys: dict  # provider -> resolved (decrypted) key or None
+    keys: dict
 
     def key_for(self, provider: str) -> str | None:
         return self.keys.get(provider)
 
     def chat_model_for_tier(self, tier: str) -> str:
-        return self.model_paid if tier in ("abhyasi", "sadhaka") else self.model_free
+        return {
+            "seeker": self.model_seeker,
+            "abhyasi": self.model_abhyasi,
+            "sadhaka": self.model_sadhaka,
+        }.get(tier, self.model_seeker)
 
 
 def _env_key(provider: str) -> str | None:
@@ -100,9 +108,11 @@ def resolved(db: Session) -> AiRuntime:
     db_keys = raw.get("keys") or {}
     keys = {p: (_decrypt(db_keys.get(p)) or _env_key(p)) for p in KEY_PROVIDERS}
     return AiRuntime(
+        provider=raw.get("provider") or "anthropic",
         model_admin=raw.get("model_admin") or env.chat_model,
-        model_free=raw.get("model_free") or env.chat_model_free,
-        model_paid=raw.get("model_paid") or env.chat_model_paid,
+        model_seeker=raw.get("model_seeker") or env.chat_model_free,
+        model_abhyasi=raw.get("model_abhyasi") or env.chat_model_paid,
+        model_sadhaka=raw.get("model_sadhaka") or env.chat_model_paid,
         embedding_model=raw.get("embedding_model") or env.embedding_model,
         transcribe_model=raw.get("transcribe_model") or env.transcribe_model,
         baseline_providers=raw.get("baseline_providers") or list(DEFAULT_BASELINE_PROVIDERS),
@@ -124,9 +134,11 @@ def view(db: Session) -> dict:
             "source": "database" if db_set else ("environment" if env_set else "none"),
         }
     return {
+        "provider": r.provider,
         "model_admin": r.model_admin,
-        "model_free": r.model_free,
-        "model_paid": r.model_paid,
+        "model_seeker": r.model_seeker,
+        "model_abhyasi": r.model_abhyasi,
+        "model_sadhaka": r.model_sadhaka,
         "embedding_model": r.embedding_model,
         "transcribe_model": r.transcribe_model,
         "baseline_providers": r.baseline_providers,
@@ -136,11 +148,35 @@ def view(db: Session) -> dict:
     }
 
 
-def validate_chat_models(db: Session, model_ids: list[str]) -> str | None:
-    """Return an error string if any claude model id is unknown to the Models API.
+def list_provider_models(db: Session, provider: str) -> list[str]:
+    """Live list of model ids available for a provider, using the stored key.
 
-    Only validates when an Anthropic key is available; on any API error we allow
-    the save (can't validate ≠ invalid)."""
+    Empty on any error / missing key — the UI falls back to free text."""
+    cfg = resolved(db)
+    try:
+        if provider == "anthropic":
+            key = cfg.key_for("anthropic")
+            if not key:
+                return []
+            import anthropic
+
+            client = anthropic.Anthropic(api_key=key)
+            return sorted(m.id for m in client.models.list().data)
+        if provider == "openai":
+            key = cfg.key_for("openai")
+            if not key:
+                return []
+            import openai
+
+            client = openai.OpenAI(api_key=key)
+            ids = [m.id for m in client.models.list().data]
+            return sorted(i for i in ids if i.startswith(("gpt", "o1", "o3", "chatgpt")))
+    except Exception:  # noqa: BLE001
+        logger.warning("Model list failed for %s", provider, exc_info=True)
+    return []
+
+
+def validate_chat_models(db: Session, model_ids: list[str]) -> str | None:
     ids = [m for m in model_ids if m and m.startswith("claude")]
     if not ids:
         return None
@@ -163,9 +199,11 @@ def validate_chat_models(db: Session, model_ids: list[str]) -> str | None:
 def update(
     db: Session,
     *,
+    provider: str,
     model_admin: str,
-    model_free: str,
-    model_paid: str,
+    model_seeker: str,
+    model_abhyasi: str,
+    model_sadhaka: str,
     embedding_model: str,
     transcribe_model: str,
     baseline_providers: list[str],
@@ -173,19 +211,21 @@ def update(
     key_clears: list[str],
 ) -> None:
     raw = load_raw(db)
+    raw["provider"] = provider or "anthropic"
     raw["model_admin"] = model_admin or env.chat_model
-    raw["model_free"] = model_free or env.chat_model_free
-    raw["model_paid"] = model_paid or env.chat_model_paid
+    raw["model_seeker"] = model_seeker or env.chat_model_free
+    raw["model_abhyasi"] = model_abhyasi or env.chat_model_paid
+    raw["model_sadhaka"] = model_sadhaka or env.chat_model_paid
     raw["embedding_model"] = embedding_model or env.embedding_model
     raw["transcribe_model"] = transcribe_model or env.transcribe_model
     raw["baseline_providers"] = [p for p in baseline_providers if p in DEFAULT_BASELINE_PROVIDERS] or list(
         DEFAULT_BASELINE_PROVIDERS
     )
     keys = dict(raw.get("keys") or {})
-    for provider, value in key_updates.items():
+    for prov, value in key_updates.items():
         if value:
-            keys[provider] = _encrypt(value)  # encrypt at rest
-    for provider in key_clears:
-        keys.pop(provider, None)
+            keys[prov] = _encrypt(value)
+    for prov in key_clears:
+        keys.pop(prov, None)
     raw["keys"] = keys
     save_raw(db, raw)
