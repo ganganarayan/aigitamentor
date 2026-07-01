@@ -63,6 +63,8 @@ class KbAnswer(Base, PkMixin, TimestampMixin):
     source_id: Mapped[int | None] = mapped_column(ForeignKey("kb_sources.id", ondelete="SET NULL"), index=True)
     # Editorial depth tag of the answer (drives kb_chunks.min_tier at ingestion).
     tier: Mapped[str] = mapped_column(String(20), default="seeker", index=True)
+    # Progression stage within a domain (recognition → … → integration).
+    stage: Mapped[str | None] = mapped_column(String(40), index=True)
     transcript_raw: Mapped[str | None] = mapped_column(Text)
     transcript_edited: Mapped[str | None] = mapped_column(Text)
     answer_final: Mapped[str | None] = mapped_column(Text)
@@ -89,6 +91,7 @@ class KbChunk(Base, PkMixin):
     min_tier: Mapped[int] = mapped_column(
         SmallInteger, nullable=False, server_default=text("0")
     )
+    stage: Mapped[str | None] = mapped_column(String(40))  # copied from the answer at ingest
     attribution: Mapped[dict] = mapped_column(
         JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )

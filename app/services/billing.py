@@ -119,6 +119,12 @@ def handle_webhook(db: Session, body: bytes, signature: str | None) -> bool:
 
     if name in ("subscription.activated", "subscription.charged", "subscription.resumed"):
         _set_tier(db, sub_row, active=True)
+        if name == "subscription.activated":
+            from app.services import meta
+
+            owner = db.get(User, sub_row.user_id)
+            if owner is not None:
+                meta.track_start_trial(owner.email)  # server-side StartTrial (CAPI)
     elif name in ("subscription.cancelled", "subscription.halted", "subscription.completed", "subscription.expired"):
         _set_tier(db, sub_row, active=False)
 

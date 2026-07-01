@@ -28,7 +28,7 @@ from app.models import (
     Verse,
 )
 from app.models.corpus import tier_level
-from app.services import ai_settings, embeddings
+from app.services import ai_settings, embeddings, memory
 from app.services.retrieval import search_chunks
 
 logger = logging.getLogger("app.chat")
@@ -209,7 +209,13 @@ def _format_context(db: Session, chunks: list[dict]) -> tuple[str, list[int], li
     for c in chunks:
         attr = c.get("attribution") or {}
         ref = attr.get("verse_ref")
-        tag = f"[source:{attr.get('origin', 'manual')}" + (f" · verse {ref}" if ref else "") + "]"
+        stage = attr.get("stage")
+        tag = (
+            f"[source:{attr.get('origin', 'manual')}"
+            + (f" · stage {stage}" if stage else "")
+            + (f" · verse {ref}" if ref else "")
+            + "]"
+        )
         if ref and ref not in verse_refs:
             verse_refs.append(ref)
         parts.append(f"{tag}\n{c['chunk_text']}")
@@ -343,18 +349,18 @@ def answer(db: Session, user, conversation: Conversation, user_message: str) -> 
             "user_tier": user.tier,
             "assessment_band": user.assessment_band or "unknown",
             "retrieved_context": context,
-            "conversation_memory": _build_memory(db, user, conversation),
+            "conversation_memory": memory.build_memory(db, user, conversation),
             "user_message": "",
         },
     )
-    # History already includes the just-saved user message (the caller persists it
-    # before calling answer), so it goes straight to Claude — no double-append.
-    history = _history_messages(db, conversation)
+    # Never inject the raw transcript — the rolling summary (in conversation_memory)
+    # carries prior context, so only the current message is sent as a turn.
+    messages = [{"role": "user", "content": user_message}]
 
     # 3) call Claude (timed) — free tier → Haiku, paid → Sonnet.
     model = cfg.chat_model_for_tier(user.tier)
     started = time.perf_counter()
-    answer_text, tin, tout = _call_claude(system, history, cfg, model)
+    answer_text, tin, tout = _call_claude(system, messages, cfg, model)
     latency_ms = int((time.perf_counter() - started) * 1000)
 
     # 4) deterministic verse check + log

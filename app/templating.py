@@ -31,3 +31,4 @@ templates.env.filters["md"] = _markdown_lite
 # auth/app links with this so users land on `app.` for sign-in. Empty locally →
 # links resolve relative to the current host.
 templates.env.globals["app_url"] = (settings.app_url or "").rstrip("/")
+templates.env.globals["meta_pixel_id"] = settings.meta_pixel_id or ""

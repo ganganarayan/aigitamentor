@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.security import hash_password, verify_password
 from app.config import settings
-from app.models import User
+from app.models import Contact, User
 
 
 def _role_for(email: str) -> str:
@@ -24,21 +24,48 @@ def get_by_id(db: Session, user_id: int) -> User | None:
     return db.get(User, user_id)
 
 
-def create_email_user(db: Session, email: str, password: str, name: str | None = None) -> User:
+def create_email_user(
+    db: Session,
+    email: str,
+    password: str,
+    name: str | None = None,
+    phone: str | None = None,
+    referral: str | None = None,
+) -> User:
     email = email.lower()
     user = User(
         email=email,
         name=name,
+        phone=phone,
         password_hash=hash_password(password),
         role=_role_for(email),
         tier="seeker",
         status="active",
+        referral_ai_source=referral,
         last_login_at=dt.datetime.now(tz=dt.timezone.utc),
     )
     db.add(user)
     db.commit()
     db.refresh(user)
+    _record_contact(db, user, referral)
     return user
+
+
+def _record_contact(db: Session, user: User, referral: str | None) -> None:
+    now = dt.datetime.now(tz=dt.timezone.utc)
+    db.add(
+        Contact(
+            user_id=user.id,
+            email=user.email,
+            name=user.name,
+            phone=user.phone,
+            referral_ai_source=referral,
+            signed_up=True,
+            first_seen=now,
+            last_seen=now,
+        )
+    )
+    db.commit()
 
 
 def authenticate(db: Session, email: str, password: str) -> User | None:

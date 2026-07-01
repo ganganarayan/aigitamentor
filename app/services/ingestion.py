@@ -57,6 +57,8 @@ def _attribution(answer: KbAnswer, source: KbSource | None, question: Question |
         "question_id": answer.question_id,
         "verse_ref": verse_ref,
         "tier": answer.tier,
+        "stage": answer.stage,
+        "domain": question.domain if question else None,
         "version": answer.version,
         "uploaded_by": source.uploaded_by if source else None,
     }
@@ -99,6 +101,7 @@ def ingest_answer(db: Session, answer: KbAnswer) -> int:
                 chunk_text=piece,
                 embedding=vector,
                 min_tier=min_tier,
+                stage=answer.stage,
                 attribution=attribution,
             )
         )

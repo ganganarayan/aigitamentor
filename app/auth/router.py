@@ -111,6 +111,9 @@ def signup_submit(
     email: str = Form(...),
     password: str = Form(...),
     name: str = Form(""),
+    phone: str = Form(""),
+    referral: str = Form(""),
+    referrer: str = Form(""),
     next: str = Form("/app"),
     db: Session = Depends(get_db),
 ):
@@ -118,6 +121,8 @@ def signup_submit(
     error = None
     if "@" not in email or len(password) < 8:
         error = "Enter a valid email and a password of at least 8 characters."
+    elif not phone.strip():
+        error = "Please enter your phone number."
     elif service.get_by_email(db, email):
         error = "An account with that email already exists. Try logging in."
     if error:
@@ -131,10 +136,28 @@ def signup_submit(
             },
             status_code=status.HTTP_400_BAD_REQUEST,
         )
-    user = service.create_email_user(db, email, password, name.strip() or None)
-    resp = RedirectResponse(_safe_next(next), status_code=status.HTTP_303_SEE_OTHER)
+    # AI-referral source: the self-report field, else derive from the referrer.
+    source = (referral.strip() or _referral_from_referrer(referrer)) or None
+    user = service.create_email_user(db, email, password, name.strip() or None, phone.strip() or None, source)
+    dest = _safe_next(next)
+    dest += ("&" if "?" in dest else "?") + "welcome=1"  # fire CompleteRegistration pixel
+    resp = RedirectResponse(dest, status_code=status.HTTP_303_SEE_OTHER)
     set_session_cookie(resp, user)
     return resp
+
+
+_AI_REFERRERS = {
+    "chatgpt": "ChatGPT", "openai": "ChatGPT", "claude": "Claude", "anthropic": "Claude",
+    "gemini": "Gemini", "google": "Google", "perplexity": "Perplexity", "bing": "Bing", "grok": "Grok",
+}
+
+
+def _referral_from_referrer(referrer: str) -> str | None:
+    r = (referrer or "").lower()
+    for needle, label in _AI_REFERRERS.items():
+        if needle in r:
+            return label
+    return None
 
 
 @router.post("/logout")

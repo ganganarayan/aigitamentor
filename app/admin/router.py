@@ -24,6 +24,7 @@ from app.models import (
     AiConfig,
     Contact,
     Conversation,
+    Event,
     Generation,
     KbAnswer,
     KbChunk,
@@ -72,7 +73,12 @@ def _latest_typed_answer(db: Session, question_id: int) -> KbAnswer | None:
     )
 
 
-def _save_typed_answer(db: Session, question_id: int, tier: str, text: str, user: User) -> KbAnswer:
+STAGES = ["", "recognition", "mechanism", "first-regulation", "deeper-practice", "integration"]
+
+
+def _save_typed_answer(
+    db: Session, question_id: int, tier: str, text: str, user: User, stage: str | None = None
+) -> KbAnswer:
     """Upsert a typed/pasted/dictated answer for (question, tier).
 
     The typed text IS the transcript — same field a transcription would fill —
@@ -81,6 +87,7 @@ def _save_typed_answer(db: Session, question_id: int, tier: str, text: str, user
     """
     if tier not in TIER_RANK:
         tier = "seeker"
+    stage = stage if stage in STAGES and stage else None
     answer = (
         db.execute(
             select(KbAnswer)
@@ -103,6 +110,7 @@ def _save_typed_answer(db: Session, question_id: int, tier: str, text: str, user
             question_id=question_id,
             source_id=source.id,
             tier=tier,
+            stage=stage,
             transcript_raw=text,
             transcript_edited=text,
             answer_final=text,
@@ -113,6 +121,7 @@ def _save_typed_answer(db: Session, question_id: int, tier: str, text: str, user
     else:
         answer.transcript_edited = text
         answer.answer_final = text
+        answer.stage = stage
         answer.status = "published"
         answer.version = (answer.version or 1) + 1
     db.commit()
@@ -329,6 +338,7 @@ def save_text_answer(
     question_id: int,
     text: str = Form(...),
     tier: str = Form("seeker"),
+    stage: str = Form(""),
     return_to: str = Form("detail"),
     user: User = Depends(require_admin),
     db: Session = Depends(get_db),
@@ -340,7 +350,7 @@ def save_text_answer(
     """
     text = (text or "").strip()
     if text:
-        _save_typed_answer(db, question_id, tier, text, user)
+        _save_typed_answer(db, question_id, tier, text, user, stage=stage)
     dest = "/admin/recorder" if return_to == "list" else f"/admin/recorder/{question_id}"
     return RedirectResponse(dest, status_code=status.HTTP_303_SEE_OTHER)
 
@@ -450,6 +460,7 @@ def answer_edit_page(
             "source": db.get(KbSource, answer.source_id) if answer.source_id else None,
             "tiers": list(TIER_RANK.keys()),
             "statuses": _STATUSES,
+            "stages": STAGES,
             "chunks": ingestion.chunk_count_for(db, answer.id),
         },
     )
@@ -461,6 +472,7 @@ def answer_edit_save(
     background: BackgroundTasks,
     text: str = Form(...),
     tier: str = Form("seeker"),
+    stage: str = Form(""),
     answer_status: str = Form("published"),
     reingest: str = Form(""),
     user: User = Depends(require_admin),
@@ -476,6 +488,7 @@ def answer_edit_save(
     answer.answer_final = (text or "").strip()
     answer.transcript_edited = answer.answer_final
     answer.tier = tier
+    answer.stage = stage if (stage in STAGES and stage) else None
     answer.status = answer_status
     answer.version = (answer.version or 1) + 1
     db.commit()
@@ -739,4 +752,25 @@ def contacts_page(request: Request, user: User = Depends(require_admin), db: Ses
     rows = list(db.execute(select(Contact).order_by(Contact.id.desc()).limit(300)).scalars())
     return templates.TemplateResponse(
         "admin/contacts.html", {"request": request, "user": user, "rows": rows}
+    )
+
+
+# --- Safety Logs ------------------------------------------------------------
+
+@router.get("/safety", response_class=HTMLResponse)
+def safety_logs(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    events = list(
+        db.execute(
+            select(Event).where(Event.event_name == "safety_flag").order_by(Event.id.desc()).limit(200)
+        ).scalars()
+    )
+    rows = [
+        {
+            "event": e,
+            "email": (db.get(User, e.user_id).email if e.user_id and db.get(User, e.user_id) else "—"),
+        }
+        for e in events
+    ]
+    return templates.TemplateResponse(
+        "admin/safety.html", {"request": request, "user": user, "rows": rows}
     )

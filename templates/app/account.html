@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Account · AI Gita Mentor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--saffron:#E8821A;--saffron-dk:#C4651A;--gold:#C9963B;--cream:#FAF3E8;--dark:#2E1F0F;--ink:#3A2810;--ink-lt:#7A5C38}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Jost',sans-serif;font-weight:300;color:var(--ink);background:var(--cream)}
+  .top{display:flex;align-items:center;gap:12px;padding:14px 22px;border-bottom:1px solid rgba(201,150,59,.25)}
+  .top a{font-size:14px;color:var(--saffron-dk);text-decoration:none}.top .om{font-size:22px;color:var(--gold)}
+  .wrap{max-width:640px;margin:0 auto;padding:44px 22px 80px}
+  h1{font-family:'Cormorant Garamond',serif;font-weight:400;font-size:36px;color:var(--dark);margin-bottom:6px}
+  .card{background:#fff;border:1px solid rgba(201,150,59,.25);border-radius:14px;padding:22px;margin-top:18px}
+  .card h3{font-family:'Cormorant Garamond',serif;font-weight:600;font-size:20px;margin-bottom:6px}
+  .card p{font-size:14px;color:var(--ink-lt);margin-bottom:14px}
+  .btn{display:inline-block;padding:12px 22px;border:none;border-radius:999px;background:var(--saffron);color:#fff;font:inherit;cursor:pointer;text-decoration:none}
+  .btn:hover{background:var(--saffron-dk)}
+  .btn.danger{background:#fff;color:#8a1c12;border:1px solid #e2b4ae}
+  .btn.danger:hover{background:#fdecea}
+  .kv{font-size:14px;line-height:1.9}.kv b{color:var(--dark)}
+</style>
+</head>
+<body>
+<div class="top"><span class="om">ॐ</span><a href="/app">← Back to your mentor</a></div>
+<div class="wrap">
+  <h1>Your account</h1>
+  <div class="card">
+    <h3>Profile</h3>
+    <div class="kv">
+      <div><b>Email:</b> {{ user.email }}</div>
+      {% if user.name %}<div><b>Name:</b> {{ user.name }}</div>{% endif %}
+      {% if user.phone %}<div><b>Phone:</b> {{ user.phone }}</div>{% endif %}
+      <div><b>Tier:</b> {{ user.tier }}</div>
+    </div>
+    <p style="margin-top:14px"><a href="/app/upgrade" style="color:var(--saffron-dk);text-decoration:none">Manage plan →</a></p>
+  </div>
+  <div class="card">
+    <h3>Export your data</h3>
+    <p>Download everything we hold about you — profile and conversations — as a JSON file.</p>
+    <a class="btn" href="/app/account/export">Download my data</a>
+  </div>
+  <div class="card">
+    <h3>Delete your account</h3>
+    <p>This permanently removes your profile and conversations. Billing records are retained only as legally required. This cannot be undone.</p>
+    <form method="post" action="/app/account/delete" onsubmit="return confirm('Permanently delete your account and conversations? This cannot be undone.')">
+      <button class="btn danger" type="submit">Delete my account</button>
+    </form>
+  </div>
+</div>
+</body>
+</html>

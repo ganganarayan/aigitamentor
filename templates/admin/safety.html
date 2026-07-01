@@ -1,0 +1,24 @@
+{% extends "admin/base.html" %}
+{% block title %}Safety Logs · Knowledge Studio{% endblock %}
+{% block body %}
+<h1>Safety Logs</h1>
+<p style="opacity:.7;font-size:14px;margin-top:-6px">Conversations where a crisis signal was detected. The mentor responds with care per the safety override; review these for follow-up.</p>
+{% if rows %}
+<table>
+  <thead><tr><th style="width:50px">#</th><th style="width:150px">When</th><th>User</th><th>Signal snippet</th><th style="width:80px">Conv</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>{{ r.event.id }}</td>
+      <td style="font-size:12px">{{ r.event.created_at.strftime('%d %b %H:%M') if r.event.created_at else '—' }}</td>
+      <td>{{ r.email }}</td>
+      <td style="font-size:13px">{{ (r.event.properties or {}).get('snippet','—') }}</td>
+      <td>{% set cid=(r.event.properties or {}).get('conversation_id') %}{% if cid %}<a href="/admin/conversations/{{ cid }}">#{{ cid }}</a>{% else %}—{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="card"><p>No safety flags — nothing to review.</p></div>
+{% endif %}
+{% endblock %}

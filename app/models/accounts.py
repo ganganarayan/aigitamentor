@@ -20,6 +20,7 @@ class User(Base, PkMixin, TimestampMixin):
 
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     name: Mapped[str | None] = mapped_column(String(200))
+    phone: Mapped[str | None] = mapped_column(String(40))  # collected at signup
     password_hash: Mapped[str | None] = mapped_column(String(255))  # null for OAuth-only
     oauth_provider: Mapped[str | None] = mapped_column(String(40))
     oauth_subject: Mapped[str | None] = mapped_column(String(255))

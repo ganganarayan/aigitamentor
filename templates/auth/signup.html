@@ -30,15 +30,26 @@
     {% endif %}
     <form method="post" action="/signup">
       <input type="hidden" name="next" value="{{ next }}" />
-      <label for="name">Name <span style="opacity:.5">(optional)</span></label>
+      <input type="hidden" name="referrer" id="referrer" value="" />
+      <label for="name">Name</label>
       <input id="name" name="name" type="text" autocomplete="name" />
       <label for="email">Email</label>
       <input id="email" name="email" type="email" required autocomplete="email" />
+      <label for="phone">Phone</label>
+      <input id="phone" name="phone" type="tel" required autocomplete="tel" placeholder="+91…" />
       <label for="password">Password</label>
       <input id="password" name="password" type="password" required minlength="8" autocomplete="new-password" />
       <div class="hint">At least 8 characters. You must be 18 or older.</div>
-      <button class="btn" type="submit">Create account</button>
+      <label for="referral">How did you find us?</label>
+      <select id="referral" name="referral" style="width:100%;padding:12px 14px;border:1px solid rgba(58,40,16,.2);border-radius:10px;font:inherit">
+        <option value="">Select…</option>
+        <option>ChatGPT</option><option>Claude</option><option>Gemini</option><option>Perplexity</option>
+        <option>Google</option><option>Bing</option><option>Grok</option>
+        <option>Search</option><option>Social</option><option>Friend</option><option>Ad</option><option>Other</option>
+      </select>
+      <button class="btn" type="submit" style="margin-top:16px">Create account</button>
     </form>
+    <script>try{document.getElementById('referrer').value=document.referrer||''}catch(e){}</script>
     <p class="alt">Already have an account? <a href="/login?next={{ next|urlencode }}">Sign in</a></p>
   </div>
 </div>

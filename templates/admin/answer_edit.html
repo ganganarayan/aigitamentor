@@ -30,6 +30,9 @@
       <span><label style="display:inline">Status</label>
         <select name="answer_status">{% for s in statuses %}<option value="{{ s }}" {% if s == answer.status %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
       </span>
+      <span><label style="display:inline">Stage</label>
+        <select name="stage">{% for s in stages %}<option value="{{ s }}" {% if s == (answer.stage or '') %}selected{% endif %}>{{ s or '—' }}</option>{% endfor %}</select>
+      </span>
       <label class="chk"><input type="checkbox" name="reingest" value="1" checked /> re-embed after saving</label>
       <button class="btn" type="submit">Save answer</button>
     </div>

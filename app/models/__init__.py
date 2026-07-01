@@ -26,9 +26,11 @@ from app.models.corpus import EMBED_DIM, TIER_RANK, KbAnswer, KbChunk, KbSource,
 from app.models.public_kb import PublicKbArticle
 from app.models.mentor import (
     Conversation,
+    ConversationSummary,
     Generation,
     Message,
     UsageCounter,
+    UserPattern,
 )
 from app.models.accounts import Payment, Subscription, User
 from app.models.acquisition import (
@@ -66,9 +68,11 @@ __all__ = [
     "PublicKbArticle",
     # mentor
     "Conversation",
+    "ConversationSummary",
     "Message",
     "Generation",
     "UsageCounter",
+    "UserPattern",
     # accounts
     "User",
     "Subscription",
