@@ -30,4 +30,34 @@
     <button class="btn" type="submit">Save changes</button>
   </form>
 </div>
+
+<div class="panel" style="max-width:520px;margin-top:16px">
+  <h3 style="margin:0 0 8px">Usage</h3>
+  <div style="font-size:14px;line-height:1.9">
+    <div><b>Plan:</b> {{ target.tier }}</div>
+    <div><b>Questions left today:</b> {{ usage.questions_left_today }}{% if usage.questions_left_month is not none %} · month: {{ usage.questions_left_month }}{% endif %}</div>
+    <div><b>Total questions asked:</b> {{ '{:,}'.format(total_questions) }}</div>
+    <div><b>Total tokens used:</b> {{ '{:,}'.format(total_tokens) }}</div>
+  </div>
+</div>
+
+<div class="panel" style="max-width:520px;margin-top:16px">
+  <h3 style="margin:0 0 8px">Billing &amp; transactions</h3>
+  <div style="font-size:14px"><b>Subscription:</b> {% if sub %}{{ sub.tier|capitalize }} · {{ sub.status }}{% else %}None (free){% endif %}</div>
+  {% if payments %}
+  <table style="width:100%;margin-top:10px;border-collapse:collapse;font-size:13px">
+    <thead><tr><th style="text-align:left;padding:5px 6px;border-bottom:1px solid rgba(58,40,16,.12)">Date</th><th style="text-align:left;padding:5px 6px;border-bottom:1px solid rgba(58,40,16,.12)">Amount</th><th style="text-align:left;padding:5px 6px;border-bottom:1px solid rgba(58,40,16,.12)">Status</th><th style="text-align:left;padding:5px 6px;border-bottom:1px solid rgba(58,40,16,.12)">Razorpay id</th></tr></thead>
+    <tbody>
+    {% for p in payments %}
+      <tr>
+        <td style="padding:5px 6px">{{ p.created_at.strftime('%Y-%m-%d') if p.created_at else '—' }}</td>
+        <td style="padding:5px 6px">₹{{ '{:,.2f}'.format(p.amount or 0) }}</td>
+        <td style="padding:5px 6px">{{ p.status }}</td>
+        <td style="padding:5px 6px;font-size:11px">{{ p.razorpay_payment_id or '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p style="margin-top:6px;font-size:13px;opacity:.7">No transactions yet.</p>{% endif %}
+</div>
 {% endblock %}

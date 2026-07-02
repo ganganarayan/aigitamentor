@@ -38,6 +38,38 @@
     </div>
     <p style="margin-top:14px"><a href="/app/upgrade" style="color:var(--saffron-dk);text-decoration:none">Manage plan →</a></p>
   </div>
+
+  <div class="card">
+    <h3>Usage</h3>
+    <div class="kv">
+      <div><b>Plan:</b> {{ user.tier }}</div>
+      <div><b>Questions left today:</b> {{ usage.questions_left_today }}{% if usage.questions_left_month is not none %} · this month: {{ usage.questions_left_month }}{% endif %}</div>
+      <div><b>Total questions asked:</b> {{ '{:,}'.format(total_questions) }}</div>
+      <div><b>Total tokens used:</b> {{ '{:,}'.format(total_tokens) }}</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Billing &amp; transactions</h3>
+    <div class="kv">
+      <div><b>Subscription:</b> {% if sub %}{{ sub.tier|capitalize }} · {{ sub.status }}{% else %}None — free (Seeker){% endif %}</div>
+    </div>
+    {% if payments %}
+    <table style="width:100%;margin-top:12px;border-collapse:collapse;font-size:13px">
+      <thead><tr><th style="text-align:left;padding:6px 8px;border-bottom:1px solid rgba(58,40,16,.12)">Date</th><th style="text-align:left;padding:6px 8px;border-bottom:1px solid rgba(58,40,16,.12)">Amount</th><th style="text-align:left;padding:6px 8px;border-bottom:1px solid rgba(58,40,16,.12)">Status</th></tr></thead>
+      <tbody>
+      {% for p in payments %}
+        <tr>
+          <td style="padding:6px 8px">{{ p.created_at.strftime('%Y-%m-%d') if p.created_at else '—' }}</td>
+          <td style="padding:6px 8px">₹{{ '{:,.2f}'.format(p.amount or 0) }} {{ p.currency }}</td>
+          <td style="padding:6px 8px">{{ p.status }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p style="margin-top:8px;font-size:14px;color:var(--ink-lt)">No transactions yet.</p>{% endif %}
+  </div>
+
   <div class="card">
     <h3>Export your data</h3>
     <p>Download everything we hold about you — profile and conversations — as a JSON file.</p>

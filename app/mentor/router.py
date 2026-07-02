@@ -237,7 +237,28 @@ def resource_view(
 
 @router.get("/app/account", response_class=HTMLResponse)
 def account_page(request: Request, user=Depends(require_user), db: Session = Depends(get_db)):
-    return templates.TemplateResponse("app/account.html", {"request": request, "user": user})
+    usage = metering.status(db, user)
+    total_questions = db.execute(
+        select(func.count()).select_from(Generation).where(Generation.user_id == user.id)
+    ).scalar_one()
+    tin, tout = db.execute(
+        select(func.coalesce(func.sum(Generation.tokens_in), 0), func.coalesce(func.sum(Generation.tokens_out), 0))
+        .where(Generation.user_id == user.id)
+    ).one()
+    sub = db.execute(
+        select(Subscription).where(Subscription.user_id == user.id).order_by(Subscription.id.desc())
+    ).scalars().first()
+    payments = list(
+        db.execute(select(Payment).where(Payment.user_id == user.id).order_by(Payment.id.desc()).limit(20)).scalars()
+    )
+    return templates.TemplateResponse(
+        "app/account.html",
+        {
+            "request": request, "user": user, "usage": usage,
+            "total_questions": total_questions, "total_tokens": int((tin or 0) + (tout or 0)),
+            "sub": sub, "payments": payments,
+        },
+    )
 
 
 @router.get("/app/account/export", response_class=JSONResponse)

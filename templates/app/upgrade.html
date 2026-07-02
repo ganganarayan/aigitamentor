@@ -41,6 +41,7 @@
 <div class="top">
   <span class="om">ॐ</span><a href="/app">← Back to your mentor</a>
   <span class="sp"></span>
+  <span style="font-size:12px;color:var(--ink-lt);text-align:right;line-height:1.4">{% if user.name %}{{ user.name }}<br>{% endif %}<span style="opacity:.7">{{ user.email }}</span></span>
   <span style="font-size:12px;background:var(--parchment);border-radius:999px;padding:4px 12px;text-transform:capitalize">{{ user.tier }}</span>
 </div>
 <div class="wrap">

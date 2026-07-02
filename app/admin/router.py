@@ -48,6 +48,7 @@ from app.services import ai_settings
 from app.services import chat as chat_service
 from app.services import ingestion
 from app.services import llm_baselines
+from app.services import metering
 from app.services import pricing
 from app.services import public_kb
 from app.services import secretbox
@@ -200,9 +201,27 @@ def user_edit_page(
     target = db.get(User, user_id)
     if target is None:
         return RedirectResponse("/admin/users", status_code=status.HTTP_303_SEE_OTHER)
+    usage = metering.status(db, target)
+    total_questions = db.execute(
+        select(func.count()).select_from(Generation).where(Generation.user_id == target.id)
+    ).scalar_one()
+    tin, tout = db.execute(
+        select(func.coalesce(func.sum(Generation.tokens_in), 0), func.coalesce(func.sum(Generation.tokens_out), 0))
+        .where(Generation.user_id == target.id)
+    ).one()
+    sub = db.execute(
+        select(Subscription).where(Subscription.user_id == target.id).order_by(Subscription.id.desc())
+    ).scalars().first()
+    payments = list(
+        db.execute(select(Payment).where(Payment.user_id == target.id).order_by(Payment.id.desc()).limit(20)).scalars()
+    )
     return templates.TemplateResponse(
         "admin/user_edit.html",
-        {"request": request, "user": user, "target": target, "tiers": _TIERS, "roles": ["user", "admin"]},
+        {
+            "request": request, "user": user, "target": target, "tiers": _TIERS, "roles": ["user", "admin"],
+            "usage": usage, "total_questions": total_questions, "total_tokens": int((tin or 0) + (tout or 0)),
+            "sub": sub, "payments": payments,
+        },
     )
 
 
