@@ -85,13 +85,18 @@ STAGES = ["", "recognition", "mechanism", "first-regulation", "deeper-practice",
 
 
 def _save_typed_answer(
-    db: Session, question_id: int, tier: str, text: str, user: User, stage: str | None = None
+    db: Session, question_id: int, tier: str, text: str, user: User,
+    stage: str | None = None, publish: bool = True,
 ) -> KbAnswer:
     """Upsert a typed/pasted/dictated answer for (question, tier).
 
     The typed text IS the transcript — same field a transcription would fill —
     so it flows through the identical publish → ingest pipeline. Idempotent per
     (question, tier): re-saving updates in place rather than duplicating.
+
+    ``publish=False`` (autosave-as-you-type) stores the text but leaves the status
+    a draft — new rows start as draft; an already-published row is NOT downgraded
+    and its version is not bumped. Explicit save publishes.
     """
     if tier not in TIER_RANK:
         tier = "seeker"
@@ -122,7 +127,7 @@ def _save_typed_answer(
             transcript_raw=text,
             transcript_edited=text,
             answer_final=text,
-            status="published",
+            status="published" if publish else "draft",
             version=1,
         )
         db.add(answer)
@@ -130,8 +135,9 @@ def _save_typed_answer(
         answer.transcript_edited = text
         answer.answer_final = text
         answer.stage = stage
-        answer.status = "published"
-        answer.version = (answer.version or 1) + 1
+        if publish:
+            answer.status = "published"
+            answer.version = (answer.version or 1) + 1
     db.commit()
     db.refresh(answer)
     return answer
@@ -235,6 +241,47 @@ def user_edit_save(
         target.assessment_taken_at = None
     db.commit()
     return RedirectResponse("/admin/users", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/recorder/questions")
+def add_question(
+    question_text: str = Form(...),
+    domain: str = Form(""),
+    gita_reference: str = Form(""),
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Add a question on the spot, then open its recorder page to answer it now."""
+    qt = (question_text or "").strip()
+    if not qt:
+        return RedirectResponse("/admin/recorder", status_code=status.HTTP_303_SEE_OTHER)
+    q = Question(
+        question_text=qt,
+        domain=(domain.strip() or None),
+        gita_reference=(gita_reference.strip() or None),
+    )
+    db.add(q)
+    db.commit()
+    db.refresh(q)
+    return RedirectResponse(f"/admin/recorder/{q.id}", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/recorder/{question_id}/autosave", response_class=JSONResponse)
+def autosave_answer(
+    question_id: int,
+    text: str = Form(""),
+    tier: str = Form("seeker"),
+    stage: str = Form(""),
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Continuously persist the answer as it's typed/dictated — kept as a DRAFT so
+    an in-progress answer never enters the corpus until explicitly published."""
+    text = (text or "").strip()
+    if not text:
+        return JSONResponse({"ok": True, "empty": True})
+    ans = _save_typed_answer(db, question_id, tier, text, user, stage=stage, publish=False)
+    return JSONResponse({"ok": True, "status": ans.status})
 
 
 @router.get("/recorder", response_class=HTMLResponse)

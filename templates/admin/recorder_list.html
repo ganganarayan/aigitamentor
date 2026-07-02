@@ -26,7 +26,25 @@
 
 {% block body %}
 <h1>Recorder — questions</h1>
-<p class="meta">{{ questions|length }} of {{ total }} questions seeded. <strong>Get AI responses</strong> pulls Claude/OpenAI/Gemini/Perplexity so you can answer beyond them. <strong>Type</strong> keeps your draft while you read each tab. <strong>Record</strong> opens the full page.</p>
+<p class="meta">{{ questions|length }} questions. <strong>Get AI responses</strong> pulls Claude/OpenAI/Gemini/Perplexity so you can answer beyond them. <strong>Type</strong> autosaves your draft as you go. <strong>Record</strong> opens the full page.</p>
+
+<div class="card" style="margin-bottom:18px">
+  <form method="post" action="/admin/recorder/questions" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <div style="flex:3;min-width:260px">
+      <label style="display:block;font-size:13px;margin-bottom:4px">Add a question</label>
+      <input name="question_text" required placeholder="e.g. How do I stop overthinking at night?" style="width:100%">
+    </div>
+    <div style="flex:1;min-width:120px">
+      <label style="display:block;font-size:13px;margin-bottom:4px">Domain</label>
+      <input name="domain" placeholder="sleep" style="width:100%">
+    </div>
+    <div style="flex:1;min-width:110px">
+      <label style="display:block;font-size:13px;margin-bottom:4px">Gita ref <span style="opacity:.5">(optional)</span></label>
+      <input name="gita_reference" placeholder="6.16" style="width:100%">
+    </div>
+    <button class="btn" type="submit">+ Add &amp; answer</button>
+  </form>
+</div>
 
 {% if questions %}
 <table>
@@ -79,8 +97,8 @@
                 <select name="tier" style="width:auto">{% for t in tiers %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
                 <label style="margin:0">Stage</label>
                 <select name="stage" style="width:auto">{% for s in stages %}<option value="{{ s }}">{{ s or '—' }}</option>{% endfor %}</select>
-                <button class="btn" type="submit">Save answer</button>
-                <span class="hint">Your draft stays as you switch tabs. Saved as a published answer → then ingest from Embeddings.</span>
+                <button class="btn" type="submit">Save &amp; publish</button>
+                <span class="hint" id="saved-{{ q.id }}">Autosaves as a draft while you type.</span>
               </div>
             </form>
           </div>
@@ -124,5 +142,31 @@ async function generate(qid){
   catch(e){ PROVS.forEach(p=>{ const el=document.getElementById('resp-'+qid+'-'+p); if(el) el.textContent='Failed — check the provider keys in Settings → AI.'; }); }
 }
 function openType(qid){ openPanel(qid); showTab(qid,'type'); }
+
+// Autosave the Type drafts as you write (kept as a draft until Save & publish).
+const _saveTimers = {};
+function autosaveList(qid){
+  const ta = document.getElementById('ta-'+qid); if(!ta) return;
+  const form = ta.closest('form');
+  const ind = document.getElementById('saved-'+qid);
+  if(!ta.value.trim()){ if(ind) ind.textContent='Autosaves as a draft while you type.'; return; }
+  if(ind) ind.textContent='Saving…';
+  const fd = new FormData();
+  fd.append('text', ta.value);
+  fd.append('tier', form.querySelector('select[name=tier]').value);
+  fd.append('stage', form.querySelector('select[name=stage]').value);
+  fetch('/admin/recorder/'+qid+'/autosave', {method:'POST', body:fd})
+    .then(() => { if(ind) ind.textContent='Draft saved ✓'; })
+    .catch(() => { if(ind) ind.textContent='Save failed — will retry'; });
+}
+document.querySelectorAll('textarea[id^="ta-"]').forEach(ta => {
+  const qid = ta.id.slice(3);
+  ta.addEventListener('input', () => {
+    clearTimeout(_saveTimers[qid]);
+    const ind = document.getElementById('saved-'+qid); if(ind) ind.textContent='…';
+    _saveTimers[qid] = setTimeout(() => autosaveList(qid), 900);
+  });
+  ta.addEventListener('blur', () => { clearTimeout(_saveTimers[qid]); autosaveList(qid); });
+});
 </script>
 {% endblock %}
