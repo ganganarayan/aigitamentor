@@ -31,49 +31,27 @@ def _fernet_from(secret: str) -> Fernet:
     return Fernet(base64.urlsafe_b64encode(hashlib.sha256((secret or "").encode("utf-8")).digest()))
 
 
-def _dedicated_keys() -> list[str]:
-    """SETTINGS_ENCRYPTION_KEY, parsed as a comma-separated list. The FIRST is the
-    primary (used to encrypt new writes); any others are kept only for decryption.
-    This is what makes rotation / platform migration safe: run the new platform
-    with ``NEW,OLD`` set, boot, hit 'Re-encrypt' in admin, then drop OLD — no value
-    is ever stranded."""
-    raw = env.settings_encryption_key or ""
-    return [k.strip() for k in raw.split(",") if k.strip()]
-
-
 def primary_source() -> str:
-    """The secret the primary cipher is derived from. First dedicated key if set,
-    else JWT_SECRET (keeps existing data readable and a keyless deploy working)."""
-    keys = _dedicated_keys()
-    return keys[0] if keys else env.jwt_secret
+    """The secret the cipher is derived from: SETTINGS_ENCRYPTION_KEY if set, else
+    JWT_SECRET (keeps a keyless deploy working)."""
+    return env.settings_encryption_key or env.jwt_secret
 
 
 def using_dedicated_key() -> bool:
-    return bool(_dedicated_keys())
+    return bool(env.settings_encryption_key)
 
 
 def _cipher() -> MultiFernet:
+    # Encrypt with the primary; also keep JWT_SECRET in the decrypt set so values
+    # written before a dedicated key existed still open (and so changing the env
+    # var later never breaks anything already keyed to JWT_SECRET).
     ciphers = []
     seen: set[str] = set()
-    # Primary first, then any additional dedicated keys (decrypt-only), then the
-    # JWT-derived legacy cipher so values written before a dedicated key still open.
-    for k in _dedicated_keys() + [env.jwt_secret]:
+    for k in (primary_source(), env.jwt_secret):
         if k and k not in seen:
             ciphers.append(_fernet_from(k))
             seen.add(k)
     return MultiFernet(ciphers or [_fernet_from(env.jwt_secret)])
-
-
-def reencrypt(stored: str | None) -> str | None:
-    """Decrypt with any available key and re-encrypt with the current primary.
-    Returns the value unchanged if it can't be decrypted — never destroys a value
-    we can't read (so a wrong key can't cascade into data loss)."""
-    if not stored:
-        return stored
-    plain = decrypt(stored)
-    if plain is None:
-        return stored
-    return encrypt(plain)
 
 
 def encrypt(value: str) -> str:

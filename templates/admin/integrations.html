@@ -27,7 +27,6 @@
 <h1>Settings — Integrations</h1>
 <p class="muted" style="margin-top:-6px">Change these without a redeploy. Secrets are encrypted at rest and never shown back — paste to replace, leave blank to keep, tick <em>clear</em> to remove (falls back to the env var). A DB value always wins over the Railway env var.</p>
 {% if error %}<div class="err">{{ error }}</div>{% endif %}
-{% if note %}<div class="ok">{{ note }}</div>{% endif %}
 
 <div class="note">
   {% if dedicated_key %}🔐 Secrets are encrypted at rest with a <strong>dedicated</strong> SETTINGS_ENCRYPTION_KEY.
@@ -35,12 +34,9 @@
 </div>
 
 <div class="panel recover">
-  <h3>🔑 Key backup &amp; rotation <span class="muted">— you can't get locked out</span></h3>
-  <p class="muted" style="margin-top:0">Everything stored here is a <strong>convenience copy</strong>: every key can be re-issued from its provider (Anthropic, Google, Razorpay, Meta) or re-pasted here, and the Railway env vars stay a live fallback. A lost encryption key never loses the app or your data — worst case, you re-enter keys once.</p>
-  <p class="muted"><strong>Rotate the key / migrate platforms with zero loss:</strong> set <code>SETTINGS_ENCRYPTION_KEY=NEWKEY,OLDKEY</code> (new first, old second), deploy, click <em>Re-encrypt</em>, then drop <code>OLDKEY</code>. Both keys decrypt during the switch, so nothing is ever stranded.</p>
-  <form method="post" action="/admin/integrations/reencrypt">
-    <button class="btn secondary" type="submit">Re-encrypt all secrets with the current key</button>
-  </form>
+  <h3>🔑 Backup &amp; recovery <span class="muted">— you can't get locked out</span></h3>
+  <p class="muted" style="margin-top:0">Everything stored here is a <strong>convenience copy</strong>: every key can be re-issued from its provider (Anthropic, Google, Razorpay, Meta) or re-pasted here, and the Railway env vars stay a live fallback. So a lost encryption key never loses the app or your data — worst case, you re-enter a key once.</p>
+  <p class="muted"><strong>To change the encryption key:</strong> just update <code>SETTINGS_ENCRYPTION_KEY</code> in Railway. Decryption also tries <code>JWT_SECRET</code>, so anything keyed to it still opens; a value saved under the old key simply shows "not set" — re-paste it and it re-encrypts with the new one.</p>
 </div>
 
 <form method="post" action="/admin/integrations">
