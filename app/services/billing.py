@@ -52,6 +52,11 @@ def create_subscription(db: Session, user: User, tier: str) -> dict:
     plan = _plan_id(db, tier)
     if not plan:
         raise RuntimeError(f"No Razorpay plan configured for {tier} (set it in Settings → Integrations).")
+    if not plan.startswith("plan_"):
+        raise RuntimeError(
+            f"Razorpay {tier} plan id looks wrong ('{plan}') — it must be the plan_… id from the Razorpay "
+            "dashboard (Subscriptions → Plans), not the tier name. Fix it in Settings → Integrations."
+        )
     client = _client(db)
     sub = client.subscription.create(
         {
