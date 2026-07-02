@@ -17,7 +17,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Payment, Subscription, User
+from app.models import Payment, Setting, Subscription, User
 from app.services import settings_store
 
 logger = logging.getLogger("app.billing")
@@ -25,13 +25,7 @@ logger = logging.getLogger("app.billing")
 # Display prices (INR/month). The authoritative amount lives in the Razorpay plan.
 TIER_PRICE = {"abhyasi": 499, "sadhaka": 1459}
 PAID_TIERS = ("abhyasi", "sadhaka")
-
-
-def _plan_id(db: Session, tier: str) -> str | None:
-    return {
-        "abhyasi": settings_store.get("razorpay_plan_abhyasi", db),
-        "sadhaka": settings_store.get("razorpay_plan_sadhaka", db),
-    }.get(tier)
+_AUTOPLAN_KEY = "razorpay_autoplans"  # cached plan ids the app created via the API
 
 
 def _client(db: Session):
@@ -44,20 +38,57 @@ def _client(db: Session):
     )
 
 
+def _autoplans(db: Session) -> dict:
+    row = db.execute(select(Setting).where(Setting.key == _AUTOPLAN_KEY)).scalar_one_or_none()
+    return dict(row.value) if row and isinstance(row.value, dict) else {}
+
+
+def _cache_autoplan(db: Session, tier: str, plan_id: str) -> None:
+    row = db.execute(select(Setting).where(Setting.key == _AUTOPLAN_KEY)).scalar_one_or_none()
+    data = dict(row.value) if row and isinstance(row.value, dict) else {}
+    data[tier] = plan_id
+    if row is None:
+        db.add(Setting(key=_AUTOPLAN_KEY, value=data))
+    else:
+        row.value = data
+    db.commit()
+
+
+def _resolve_plan(db: Session, client, tier: str) -> str:
+    """Get a Razorpay plan id WITHOUT anyone touching the dashboard.
+
+    Order: an explicitly-configured ``plan_…`` id (Settings → Integrations) → a
+    plan the app already auto-created (cached) → otherwise create one via the API
+    now and cache it. So GND never creates a plan or supplies a plan id.
+    """
+    configured = settings_store.get(f"razorpay_plan_{tier}", db)
+    if configured and str(configured).startswith("plan_"):
+        return configured
+    cached = _autoplans(db).get(tier)
+    if cached and str(cached).startswith("plan_"):
+        return cached
+    price = TIER_PRICE.get(tier, 0)
+    created = client.plan.create({
+        "period": "monthly",
+        "interval": 1,
+        "item": {"name": f"AI Gita Mentor — {tier.title()}", "amount": int(price) * 100, "currency": "INR"},
+        "notes": {"tier": tier},
+    })
+    plan_id = created.get("id")
+    if not plan_id:
+        raise RuntimeError("Razorpay plan creation returned no id.")
+    _cache_autoplan(db, tier, plan_id)
+    logger.info("Auto-created Razorpay plan %s for %s", plan_id, tier)
+    return plan_id
+
+
 def create_subscription(db: Session, user: User, tier: str) -> dict:
-    """Create a Razorpay subscription and a local record. Returns the Razorpay
-    subscription dict (has ``short_url`` for hosted checkout)."""
+    """Create a Razorpay subscription (plan auto-created via API — no dashboard
+    setup) and a local record. Returns the subscription dict (has ``short_url``)."""
     if tier not in PAID_TIERS:
         raise RuntimeError("Unknown plan.")
-    plan = _plan_id(db, tier)
-    if not plan:
-        raise RuntimeError(f"No Razorpay plan configured for {tier} (set it in Settings → Integrations).")
-    if not plan.startswith("plan_"):
-        raise RuntimeError(
-            f"Razorpay {tier} plan id looks wrong ('{plan}') — it must be the plan_… id from the Razorpay "
-            "dashboard (Subscriptions → Plans), not the tier name. Fix it in Settings → Integrations."
-        )
     client = _client(db)
+    plan = _resolve_plan(db, client, tier)
     sub = client.subscription.create(
         {
             "plan_id": plan,

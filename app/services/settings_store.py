@@ -53,12 +53,14 @@ FIELDS: list[Field] = [
     Field("razorpay_key_id", "Payments (Razorpay)", "Key ID", env_attr="razorpay_key_id"),
     Field("razorpay_key_secret", "Payments (Razorpay)", "Key secret", secret=True, env_attr="razorpay_key_secret"),
     Field("razorpay_webhook_secret", "Payments (Razorpay)", "Webhook secret", secret=True, env_attr="razorpay_webhook_secret"),
-    Field("razorpay_plan_abhyasi", "Payments (Razorpay)", "Abhyāsi plan id (₹499/mo)",
-          env_attr="razorpay_plan_abhyasi", placeholder="plan_Pxxxxxxxxxxxx",
-          help="The Razorpay subscription-plan id (starts with 'plan_') — NOT the tier name."),
-    Field("razorpay_plan_sadhaka", "Payments (Razorpay)", "Sādhaka plan id (₹1,459/mo)",
-          env_attr="razorpay_plan_sadhaka", placeholder="plan_Pxxxxxxxxxxxx",
-          help="The Razorpay subscription-plan id (starts with 'plan_') — NOT the tier name."),
+    Field("razorpay_plan_abhyasi", "Payments (Razorpay)", "Abhyāsi plan id (optional)",
+          env_attr="razorpay_plan_abhyasi", placeholder="leave blank — auto-created",
+          help="Optional. Leave blank and the app creates the ₹499 monthly plan via the API on first "
+               "subscribe. Only set a plan_… id to force a specific plan."),
+    Field("razorpay_plan_sadhaka", "Payments (Razorpay)", "Sādhaka plan id (optional)",
+          env_attr="razorpay_plan_sadhaka", placeholder="leave blank — auto-created",
+          help="Optional. Leave blank and the app creates the ₹1,459 monthly plan via the API on first "
+               "subscribe. Only set a plan_… id to force a specific plan."),
     # Meta Pixel / CAPI
     Field("meta_pixel_id", "Meta Pixel / CAPI", "Pixel ID", env_attr="meta_pixel_id"),
     Field("meta_capi_token", "Meta Pixel / CAPI", "CAPI token", secret=True, env_attr="meta_capi_token"),
