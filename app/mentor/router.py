@@ -166,12 +166,21 @@ def chat_send(
         answer_text = escalation.finalize(db, user, conv, message, answer_text, directive)
         # Refresh summary + pattern in the background (memory engine).
         background.add_task(memory.refresh_after_turn, user.id, conv.id)
-    except Exception:  # noqa: BLE001 — surface a friendly message, never 500 the chat
+    except Exception as exc:  # noqa: BLE001 — surface a friendly message, never 500 the chat
         logger.exception("Chat generation failed")
-        answer_text = (
-            "I'm not able to answer right now — the mentor isn't fully configured yet "
-            "(an AI key may be missing in Settings → AI). Please try again shortly."
-        )
+        from app.services import anthropic_client
+
+        if anthropic_client.is_transient(exc):
+            # 429/529/5xx: Anthropic is catching up — not a config problem.
+            answer_text = (
+                "The mentor is catching up right now — a lot of seekers are here at once. "
+                "Give it a few seconds and send that again; your place is held."
+            )
+        else:
+            answer_text = (
+                "I'm not able to answer right now — the mentor isn't fully configured yet "
+                "(an AI key may be missing in Settings → AI). Please try again shortly."
+            )
         generation_id = None
 
     db.add(

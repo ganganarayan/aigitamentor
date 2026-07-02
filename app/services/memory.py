@@ -97,9 +97,9 @@ def _haiku(cfg, system: str, user_content: str, max_tokens: int = 400) -> str:
     key = cfg.key_for("anthropic")
     if not key:
         raise RuntimeError("no anthropic key")
-    import anthropic
+    from app.services import anthropic_client
 
-    client = anthropic.Anthropic(api_key=key)
+    client = anthropic_client.make(key, retries=anthropic_client.BG_RETRIES)
     resp = client.messages.create(
         model=cfg.model_seeker,  # Haiku — cheap
         max_tokens=max_tokens,

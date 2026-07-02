@@ -31,11 +31,17 @@ def _make_engine() -> Engine | None:
     if not settings.database_url:
         logger.warning("DATABASE_URL is not set — running without a database.")
         return None
+    # Bounded connection pool (never one raw connection per request). pre_ping
+    # revalidates a connection before use and pool_recycle drops connections
+    # Railway/Postgres may have closed while idle — both prevent stale-connection
+    # errors under real traffic. ~15 concurrent DB ops per replica is ample for an
+    # I/O-bound async-served app; add replicas, not pool size, to scale.
     return create_engine(
         _normalize_url(settings.database_url),
         pool_pre_ping=True,
         pool_size=5,
         max_overflow=10,
+        pool_recycle=1800,
         echo=settings.debug,
         future=True,
     )

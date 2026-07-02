@@ -142,9 +142,9 @@ def extract_profile(db: Session, text: str) -> dict:
     if not key:
         return {}
     try:
-        import anthropic
+        from app.services import anthropic_client
 
-        client = anthropic.Anthropic(api_key=key)
+        client = anthropic_client.make(key, retries=anthropic_client.BG_RETRIES)
         resp = client.messages.create(
             model=cfg.model_seeker,  # cheap (Haiku) for extraction
             max_tokens=200,
@@ -292,9 +292,9 @@ def _call_claude(
     key = cfg.key_for("anthropic")
     if not key:
         raise RuntimeError("Anthropic API key not configured — set it in Settings → AI.")
-    import anthropic
+    from app.services import anthropic_client
 
-    client = anthropic.Anthropic(api_key=key)
+    client = anthropic_client.make(key)
     # Cache the big, stable system prompt; append any per-turn escalation guidance
     # as a second, un-cached block so it never busts the prompt cache.
     system_blocks = [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]

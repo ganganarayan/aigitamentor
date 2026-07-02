@@ -56,6 +56,14 @@ class Settings(BaseSettings):
     embedding_dim: int = Field(default=1536, alias="EMBEDDING_DIM")
     transcribe_model: str = Field(default="gpt-4o-mini-transcribe", alias="TRANSCRIBE_MODEL")
 
+    # --- Secrets encryption ---
+    # Dedicated key that encrypts every secret stored in the DB settings table.
+    # Falls back to JWT_SECRET if unset (existing values stay readable), but set a
+    # real key so rotating JWT_SECRET never orphans stored secrets. Keep it OUTSIDE
+    # the app (it can't live in the DB it protects). Generate with:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    settings_encryption_key: str | None = Field(default=None, alias="SETTINGS_ENCRYPTION_KEY")
+
     # --- Auth ---
     jwt_secret: str = Field(default="dev-insecure-change-me", alias="JWT_SECRET")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")

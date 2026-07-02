@@ -19,18 +19,16 @@ transparently and re-encrypted on next save.
 
 from __future__ import annotations
 
-import base64
-import hashlib
 import logging
 from dataclasses import dataclass
 
 import httpx
-from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings as env
 from app.models import Setting
+from app.services import secretbox
 
 logger = logging.getLogger("app.ai_settings")
 
@@ -40,7 +38,6 @@ DEFAULT_BASELINE_PROVIDERS = ["claude", "openai", "gemini", "perplexity"]
 # The baseline panel labels Anthropic as "claude"; its models come from the
 # anthropic key. This maps a baseline provider name → the key/list provider.
 BASELINE_TO_KEY_PROVIDER = {"claude": "anthropic"}
-_ENC_PREFIX = "enc:v1:"
 
 
 def _default_baseline_models() -> dict:
@@ -52,27 +49,14 @@ def _default_baseline_models() -> dict:
     }
 
 
-# --- key encryption ---------------------------------------------------------
-
-def _cipher() -> Fernet:
-    key = base64.urlsafe_b64encode(hashlib.sha256(env.jwt_secret.encode("utf-8")).digest())
-    return Fernet(key)
-
+# --- key encryption (shared cipher; see app/services/secretbox.py) -----------
 
 def _encrypt(value: str) -> str:
-    return _ENC_PREFIX + _cipher().encrypt(value.encode("utf-8")).decode("utf-8")
+    return secretbox.encrypt(value)
 
 
 def _decrypt(value: str | None) -> str | None:
-    if not value:
-        return None
-    if value.startswith(_ENC_PREFIX):
-        try:
-            return _cipher().decrypt(value[len(_ENC_PREFIX):].encode("utf-8")).decode("utf-8")
-        except InvalidToken:
-            logger.warning("Stored API key failed to decrypt (JWT_SECRET changed?).")
-            return None
-    return value  # legacy plaintext — readable, re-encrypted on next save
+    return secretbox.decrypt(value)
 
 
 @dataclass
@@ -217,9 +201,9 @@ def list_provider_models(db: Session, provider: str) -> list[str]:
             key = cfg.key_for("anthropic")
             if not key:
                 return []
-            import anthropic
+            from app.services import anthropic_client
 
-            client = anthropic.Anthropic(api_key=key)
+            client = anthropic_client.make(key, retries=anthropic_client.BG_RETRIES)
             return sorted(m.id for m in client.models.list().data)
         if provider == "openai":
             key = cfg.key_for("openai")
@@ -247,9 +231,9 @@ def validate_chat_models(db: Session, model_ids: list[str]) -> str | None:
     if not key:
         return None
     try:
-        import anthropic
+        from app.services import anthropic_client
 
-        client = anthropic.Anthropic(api_key=key)
+        client = anthropic_client.make(key, retries=anthropic_client.BG_RETRIES)
         available = {m.id for m in client.models.list().data}
     except Exception:  # noqa: BLE001
         return None

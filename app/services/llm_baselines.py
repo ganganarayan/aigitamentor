@@ -40,9 +40,9 @@ def _prompt(question_text: str) -> str:
 def _claude(text: str, api_key: str | None, model: str) -> str:
     if not api_key:
         raise RuntimeError("Anthropic API key not configured")
-    import anthropic
+    from app.services import anthropic_client
 
-    client = anthropic.Anthropic(api_key=api_key)
+    client = anthropic_client.make(api_key, retries=anthropic_client.BG_RETRIES)
     msg = client.messages.create(
         model=model,
         max_tokens=_MAX_TOKENS,

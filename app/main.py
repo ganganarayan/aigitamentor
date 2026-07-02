@@ -92,6 +92,27 @@ async def host_router(request: Request, call_next):
     return await call_next(request)
 
 
+# Cache-Control policy (CDN habit). The gated app is personalized and must NEVER
+# be cached by any CDN/proxy; the public KB (/learn) is safe to cache and benefits
+# from a CDN in front of the `ai.` host. The landing page is left uncached because
+# it embeds a per-request Meta Pixel event_id (a shared cache entry would collapse
+# distinct PageViews into one via dedup).
+_NOSTORE_PATHS = (
+    "/app", "/admin", "/api", "/auth", "/billing", "/login", "/signup", "/logout", "/me",
+)
+
+
+@app.middleware("http")
+async def cache_headers(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if any(path == p or path.startswith(p + "/") for p in _NOSTORE_PATHS):
+        response.headers["Cache-Control"] = "private, no-store"
+    elif path == "/learn" or path.startswith("/learn/"):
+        response.headers.setdefault("Cache-Control", "public, max-age=300, s-maxage=3600")
+    return response
+
+
 # Bounce unauthenticated browsers to the login page (preserving the target).
 @app.exception_handler(RedirectToLogin)
 async def _redirect_to_login(request: Request, exc: RedirectToLogin):
