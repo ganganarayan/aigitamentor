@@ -38,6 +38,29 @@ def _client(db: Session):
     )
 
 
+def diagnose(db: Session) -> tuple[bool, str]:
+    """Check the Razorpay setup and return (ok, human message). Pinpoints the two
+    usual failures: wrong key (auth) vs Subscriptions not enabled on the account."""
+    if not settings_store.razorpay_enabled(db):
+        return False, "Key ID / Key Secret are not set."
+    try:
+        client = _client(db)
+    except Exception as exc:  # noqa: BLE001
+        return False, str(exc)
+    try:  # authenticated, side-effect-free — proves the key pair is valid
+        client.payment.all({"count": 1})
+    except Exception as exc:  # noqa: BLE001
+        return False, f"Authentication failed — the Key ID and Key Secret don't match. Razorpay said: {exc}"
+    try:  # proves the Subscriptions/Plans API is usable on this account
+        client.plan.all({"count": 1})
+    except Exception as exc:  # noqa: BLE001
+        return False, (
+            "Keys are valid, but the Plans/Subscriptions API failed — Subscriptions may not be "
+            f"enabled on this Razorpay account (enable it in the dashboard). Razorpay said: {exc}"
+        )
+    return True, "Connected — keys are valid and Subscriptions are accessible."
+
+
 def _autoplans(db: Session) -> dict:
     row = db.execute(select(Setting).where(Setting.key == _AUTOPLAN_KEY)).scalar_one_or_none()
     return dict(row.value) if row and isinstance(row.value, dict) else {}

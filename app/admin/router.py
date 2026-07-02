@@ -745,18 +745,28 @@ def settings_save(
 
 @router.get("/integrations", response_class=HTMLResponse)
 def integrations_page(
-    request: Request, error: str = "",
+    request: Request, error: str = "", note: str = "",
     user: User = Depends(require_admin), db: Session = Depends(get_db),
 ):
     return templates.TemplateResponse(
         "admin/integrations.html",
         {
-            "request": request, "user": user, "error": error,
+            "request": request, "user": user, "error": error, "note": note,
             "sections": settings_store.sections(db),
             "audit": settings_store.recent_audit(db, 30),
             "dedicated_key": secretbox.using_dedicated_key(),
         },
     )
+
+
+@router.post("/integrations/razorpay-test")
+def integrations_razorpay_test(user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    from app.services import billing
+    from urllib.parse import quote
+
+    ok, message = billing.diagnose(db)
+    key = "note" if ok else "error"
+    return RedirectResponse(f"/admin/integrations?{key}={quote(message)}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/integrations")

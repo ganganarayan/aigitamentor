@@ -51,10 +51,14 @@ def subscribe(
         sub = billing.create_subscription(db, user, tier)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Subscription create failed: %s", exc)
-        return RedirectResponse(
-            "/app/upgrade?error=Checkout+is+not+available+right+now.+Please+try+again+soon.",
-            status_code=status.HTTP_303_SEE_OTHER,
-        )
+        # Admins get the real Razorpay error (for debugging); users get a soft message.
+        if getattr(user, "role", "") == "admin":
+            from urllib.parse import quote
+
+            msg = quote(f"[admin] {exc}")
+        else:
+            msg = "Checkout+is+not+available+right+now.+Please+try+again+soon."
+        return RedirectResponse(f"/app/upgrade?error={msg}", status_code=status.HTTP_303_SEE_OTHER)
     short_url = sub.get("short_url")
     if not short_url:
         return RedirectResponse("/app/upgrade?error=Could+not+start+checkout", status_code=status.HTTP_303_SEE_OTHER)

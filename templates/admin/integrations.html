@@ -27,6 +27,12 @@
 <h1>Settings — Integrations</h1>
 <p class="muted" style="margin-top:-6px">Change these without a redeploy. Secrets are encrypted at rest and never shown back — paste to replace, leave blank to keep, tick <em>clear</em> to remove (falls back to the env var). A DB value always wins over the Railway env var.</p>
 {% if error %}<div class="err">{{ error }}</div>{% endif %}
+{% if note %}<div class="ok">{{ note }}</div>{% endif %}
+
+<form method="post" action="/admin/integrations/razorpay-test" style="margin-bottom:16px">
+  <button class="btn secondary" type="submit">Test Razorpay connection</button>
+  <span class="muted" style="margin-left:8px">Checks the key pair and Subscriptions access.</span>
+</form>
 
 <div class="note">
   {% if dedicated_key %}🔐 Secrets are encrypted at rest with a <strong>dedicated</strong> SETTINGS_ENCRYPTION_KEY.
