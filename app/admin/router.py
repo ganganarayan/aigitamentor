@@ -590,12 +590,23 @@ def settings_page(
     db: Session = Depends(get_db),
 ):
     ai = ai_settings.view(db)
-    # Live model list for the current provider so the dropdowns render populated
-    # (only models the provider actually offers). Empty if the key isn't set yet.
-    models = ai_settings.list_provider_models(db, ai["provider"])
+    # Live model lists so the dropdowns render populated (only models the provider
+    # actually offers). Fetch each underlying provider once (claude ≡ anthropic);
+    # cheap when a key is unset (returns [] / a public fallback without an HTTP call).
+    cache: dict[str, list[str]] = {}
+
+    def models_for(name: str) -> list[str]:
+        key = ai_settings.BASELINE_TO_KEY_PROVIDER.get(name, name)
+        if key not in cache:
+            cache[key] = ai_settings.list_provider_models(db, key)
+        return cache[key]
+
+    models = models_for(ai["provider"])
+    baseline_model_options = {p: models_for(p) for p in ai["baseline_choices"]}
     return templates.TemplateResponse(
         "admin/settings.html",
-        {"request": request, "user": user, "ai": ai, "models": models, "error": error},
+        {"request": request, "user": user, "ai": ai, "models": models,
+         "baseline_model_options": baseline_model_options, "error": error},
     )
 
 
@@ -619,6 +630,10 @@ def settings_save(
     embedding_model: str = Form(""),
     transcribe_model: str = Form(""),
     baseline_providers: list[str] = Form(default=[]),
+    bmodel_claude: str = Form(""),
+    bmodel_openai: str = Form(""),
+    bmodel_gemini: str = Form(""),
+    bmodel_perplexity: str = Form(""),
     anthropic_api_key: str = Form(""),
     openai_api_key: str = Form(""),
     gemini_api_key: str = Form(""),
@@ -657,6 +672,10 @@ def settings_save(
         embedding_model=embedding_model.strip(),
         transcribe_model=transcribe_model.strip(),
         baseline_providers=baseline_providers,
+        baseline_models={
+            "claude": bmodel_claude, "openai": bmodel_openai,
+            "gemini": bmodel_gemini, "perplexity": bmodel_perplexity,
+        },
         key_updates=key_updates,
         key_clears=key_clears,
     )

@@ -29,6 +29,10 @@
   .provider-row { display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
   .provider-row select { width:auto; }
   #modelHint { font-size:12px; opacity:.6; }
+  .fetchbtn { padding:6px 12px; font-size:13px; }
+  .brow { display:flex; align-items:center; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+  .brow .bchk { display:inline-flex; align-items:center; gap:7px; min-width:120px; margin:0; text-transform:capitalize; }
+  .brow .bchk input { width:auto; }
 {% endblock %}
 
 {% block body %}
@@ -50,13 +54,28 @@
 </select>
 {%- endmacro %}
 
+{% macro baselineselect(provider, current, models) -%}
+<select name="bmodel_{{ provider }}" class="baselinesel" data-provider="{{ provider }}" data-current="{{ current }}" style="flex:1;min-width:180px">
+  {%- if current and current not in models %}
+  <option value="{{ current }}" selected>{{ current }} — current</option>
+  {%- endif %}
+  {%- for m in models %}
+  <option value="{{ m }}"{% if m == current %} selected{% endif %}>{{ m }}</option>
+  {%- endfor %}
+  {%- if not models and not current %}
+  <option value="" disabled selected>— set the {{ provider }} key —</option>
+  {%- endif %}
+</select>
+{%- endmacro %}
+
 <form method="post" action="/admin/settings">
   <div class="provider-row">
     <label style="margin:0"><strong>Provider</strong></label>
     <select id="provider" name="provider" onchange="loadModels()">
       {% for p in ai.key_providers %}<option value="{{ p }}" {% if p == ai.provider %}selected{% endif %}>{{ p }}</option>{% endfor %}
     </select>
-    <span id="modelHint">{% if models %}Choose from {{ models|length }} {{ ai.provider }} models.{% else %}No models available — set the {{ ai.provider }} key and Save, then reopen this page.{% endif %}</span>
+    <button type="button" class="btn secondary fetchbtn" onclick="loadModels()">↻ Fetch models</button>
+    <span id="modelHint">{% if models %}Choose from {{ models|length }} {{ ai.provider }} models.{% else %}No models available — set the {{ ai.provider }} key, then Fetch.{% endif %}</span>
   </div>
 
   <div class="grid2">
@@ -98,12 +117,14 @@
 
   <div class="panel">
     <h3>Baseline panel providers</h3>
-    <p class="sub">Which models are queried for the commodity-floor panel in the recorder.</p>
-    <div class="checks">
-      {% for p in ai.baseline_choices %}
-      <label><input type="checkbox" name="baseline_providers" value="{{ p }}" {% if p in ai.baseline_providers %}checked{% endif %} /> {{ p }}</label>
-      {% endfor %}
+    <p class="sub">The commodity-floor panel in the recorder. Tick a provider and pick which of its models is queried. Gemini &amp; Perplexity list without a key; Claude &amp; OpenAI need their key set.</p>
+    <button type="button" class="btn secondary fetchbtn" style="margin-bottom:12px" onclick="loadBaselines()">↻ Fetch models</button>
+    {% for p in ai.baseline_choices %}
+    <div class="brow">
+      <label class="bchk"><input type="checkbox" name="baseline_providers" value="{{ p }}" {% if p in ai.baseline_providers %}checked{% endif %} /> {{ p }}</label>
+      {{ baselineselect(p, ai.baseline_models[p], baseline_model_options[p]) }}
     </div>
+    {% endfor %}
   </div>
 
   <div class="panel">
@@ -136,28 +157,33 @@
 <script>
   function toggleKey(id, btn){ const el=document.getElementById(id); if(!el) return; el.type = el.type==='password'?'text':'password'; btn.style.opacity = el.type==='text'?1:0.6; }
   function esc(s){ return (''+s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-  // Rebuild every model dropdown from the selected provider's LIVE list. Only
-  // available models are offered; the current value is kept selected (marked if
-  // it isn't in the live list) so a setting is never silently lost.
+  async function fetchModels(provider){
+    try{ const r=await fetch('/admin/models?provider='+encodeURIComponent(provider)); const d=await r.json(); return d.models||[]; }
+    catch(e){ return []; }
+  }
+  // Rebuild a <select> from a model list, keeping the current value selected
+  // (marked if it isn't in the live list) so a setting is never silently lost.
+  function fillSelect(sel, models){
+    const cur = sel.value || sel.getAttribute('data-current') || '';
+    let html='';
+    if(cur && !models.includes(cur)) html+='<option value="'+esc(cur)+'" selected>'+esc(cur)+' — current</option>';
+    html+=models.map(m=>'<option value="'+esc(m)+'"'+(m===cur?' selected':'')+'>'+esc(m)+'</option>').join('');
+    if(!models.length && !cur) html='<option value="" disabled selected>— no models —</option>';
+    sel.innerHTML=html;
+  }
+  // Mentor/admin pickers: pull the selected provider's live list.
   async function loadModels(){
     const prov=document.getElementById('provider').value;
     const hint=document.getElementById('modelHint');
     hint.textContent='Loading available models…';
-    let models=[];
-    try{
-      const r=await fetch('/admin/models?provider='+encodeURIComponent(prov));
-      const data=await r.json();
-      models=data.models||[];
-    }catch(e){}
-    document.querySelectorAll('.modelsel').forEach(sel=>{
-      const cur = sel.value || sel.getAttribute('data-current') || '';
-      let html='';
-      if(cur && !models.includes(cur)) html+='<option value="'+esc(cur)+'" selected>'+esc(cur)+' — current</option>';
-      html+=models.map(m=>'<option value="'+esc(m)+'"'+(m===cur?' selected':'')+'>'+esc(m)+'</option>').join('');
-      if(!models.length && !cur) html='<option value="" disabled selected>— set the provider key &amp; Save, then reopen —</option>';
-      sel.innerHTML=html;
-    });
-    hint.textContent = models.length ? ('Choose from '+models.length+' '+prov+' models.') : ('No models available — set the '+prov+' key and Save, then reopen this page.');
+    const models=await fetchModels(prov);
+    document.querySelectorAll('.modelsel').forEach(sel=>fillSelect(sel, models));
+    hint.textContent = models.length ? ('Choose from '+models.length+' '+prov+' models.') : ('No models available — set the '+prov+' key, then Fetch.');
+  }
+  // Baseline pickers: each row pulls its own provider's list.
+  async function loadBaselines(){
+    const sels=[...document.querySelectorAll('.baselinesel')];
+    await Promise.all(sels.map(async sel => fillSelect(sel, await fetchModels(sel.getAttribute('data-provider')))));
   }
 </script>
 {% endblock %}

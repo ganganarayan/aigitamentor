@@ -37,7 +37,19 @@ logger = logging.getLogger("app.ai_settings")
 SETTINGS_KEY = "ai_runtime"
 KEY_PROVIDERS = ["anthropic", "openai", "gemini", "perplexity"]
 DEFAULT_BASELINE_PROVIDERS = ["claude", "openai", "gemini", "perplexity"]
+# The baseline panel labels Anthropic as "claude"; its models come from the
+# anthropic key. This maps a baseline provider name → the key/list provider.
+BASELINE_TO_KEY_PROVIDER = {"claude": "anthropic"}
 _ENC_PREFIX = "enc:v1:"
+
+
+def _default_baseline_models() -> dict:
+    return {
+        "claude": env.chat_model,
+        "openai": "gpt-4o-mini",
+        "gemini": "gemini-2.5-flash",
+        "perplexity": "sonar",
+    }
 
 
 # --- key encryption ---------------------------------------------------------
@@ -73,6 +85,7 @@ class AiRuntime:
     embedding_model: str
     transcribe_model: str
     baseline_providers: list[str]
+    baseline_models: dict
     keys: dict
 
     def key_for(self, provider: str) -> str | None:
@@ -108,6 +121,9 @@ def resolved(db: Session) -> AiRuntime:
     raw = load_raw(db)
     db_keys = raw.get("keys") or {}
     keys = {p: (_decrypt(db_keys.get(p)) or _env_key(p)) for p in KEY_PROVIDERS}
+    bm_raw = raw.get("baseline_models") or {}
+    defaults = _default_baseline_models()
+    baseline_models = {p: (bm_raw.get(p) or defaults[p]) for p in DEFAULT_BASELINE_PROVIDERS}
     return AiRuntime(
         provider=raw.get("provider") or "anthropic",
         model_admin=raw.get("model_admin") or env.chat_model,
@@ -117,6 +133,7 @@ def resolved(db: Session) -> AiRuntime:
         embedding_model=raw.get("embedding_model") or env.embedding_model,
         transcribe_model=raw.get("transcribe_model") or env.transcribe_model,
         baseline_providers=raw.get("baseline_providers") or list(DEFAULT_BASELINE_PROVIDERS),
+        baseline_models=baseline_models,
         keys=keys,
     )
 
@@ -143,6 +160,7 @@ def view(db: Session) -> dict:
         "embedding_model": r.embedding_model,
         "transcribe_model": r.transcribe_model,
         "baseline_providers": r.baseline_providers,
+        "baseline_models": r.baseline_models,
         "key_status": key_status,
         "key_providers": KEY_PROVIDERS,
         "baseline_choices": DEFAULT_BASELINE_PROVIDERS,
@@ -192,6 +210,7 @@ def list_provider_models(db: Session, provider: str) -> list[str]:
     its public REST endpoint, else a curated public fallback. perplexity: the
     fixed, public Sonar set (no list endpoint). Empty only for anthropic/openai
     without a key."""
+    provider = BASELINE_TO_KEY_PROVIDER.get(provider, provider)  # "claude" → "anthropic"
     cfg = resolved(db)
     try:
         if provider == "anthropic":
@@ -251,6 +270,7 @@ def update(
     embedding_model: str,
     transcribe_model: str,
     baseline_providers: list[str],
+    baseline_models: dict[str, str],
     key_updates: dict[str, str],
     key_clears: list[str],
 ) -> None:
@@ -265,6 +285,10 @@ def update(
     raw["baseline_providers"] = [p for p in baseline_providers if p in DEFAULT_BASELINE_PROVIDERS] or list(
         DEFAULT_BASELINE_PROVIDERS
     )
+    defaults = _default_baseline_models()
+    raw["baseline_models"] = {
+        p: ((baseline_models.get(p) or "").strip() or defaults[p]) for p in DEFAULT_BASELINE_PROVIDERS
+    }
     keys = dict(raw.get("keys") or {})
     for prov, value in key_updates.items():
         if value:

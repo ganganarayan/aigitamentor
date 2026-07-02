@@ -97,15 +97,16 @@ def call_provider(
     provider: str, question_text: str, cfg: ai_settings.AiRuntime
 ) -> tuple[str | None, str | None]:
     """Return (answer, error). Exactly one is non-None. Keys/models come from cfg."""
+    bm = cfg.baseline_models or {}
     try:
         if provider == "claude":
-            return _claude(question_text, cfg.key_for("anthropic"), cfg.model_admin), None
+            return _claude(question_text, cfg.key_for("anthropic"), bm.get("claude") or cfg.model_admin), None
         if provider == "openai":
-            return _openai(question_text, cfg.key_for("openai"), _OPENAI_MODEL), None
+            return _openai(question_text, cfg.key_for("openai"), bm.get("openai") or _OPENAI_MODEL), None
         if provider == "gemini":
-            return _gemini(question_text, cfg.key_for("gemini"), _GEMINI_MODEL), None
+            return _gemini(question_text, cfg.key_for("gemini"), bm.get("gemini") or _GEMINI_MODEL), None
         if provider == "perplexity":
-            return _perplexity(question_text, cfg.key_for("perplexity"), _PERPLEXITY_MODEL), None
+            return _perplexity(question_text, cfg.key_for("perplexity"), bm.get("perplexity") or _PERPLEXITY_MODEL), None
         return None, f"Unknown provider: {provider}"
     except Exception as exc:  # noqa: BLE001 — isolate provider failures
         logger.warning("Baseline provider %s failed: %s", provider, exc)
