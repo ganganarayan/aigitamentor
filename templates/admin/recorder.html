@@ -82,7 +82,7 @@
     {% if baselines %}
       {% for b in baselines %}
         <div class="baseline">
-          <div class="p">{{ b.provider }}</div>
+          <div class="p">{{ b.provider }}{% if b.cost_inr %} <span style="font-weight:400;opacity:.55;font-size:12px">· ₹{{ '%.2f'|format(b.cost_inr) }}</span>{% endif %}</div>
           <div class="a">{{ b.answer_text or '—' }}</div>
         </div>
       {% endfor %}

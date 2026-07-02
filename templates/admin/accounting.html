@@ -1,0 +1,102 @@
+{% extends "admin/base.html" %}
+{% block title %}Accounting · Knowledge Studio{% endblock %}
+{% block styles %}
+  .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-bottom:8px}
+  .stat{background:#fff;border:1px solid rgba(201,150,59,.25);border-radius:12px;padding:18px}
+  .stat .n{font-size:26px;font-weight:700;color:var(--dark)}.stat .l{font-size:13px;opacity:.7}
+  .stat.pos .n{color:#1c6b2e}.stat.neg .n{color:#8a1c12}
+  .stat.hl{background:#fbf3e3;border-color:rgba(201,150,59,.5)}
+  h2{font-size:19px;margin:26px 0 12px;color:var(--dark)}
+  .muted{opacity:.7;font-size:13px}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .sub td{font-weight:600;background:var(--parchment)}
+  .inlineform{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .inlineform .fld label{display:block;font-size:12px;opacity:.7;margin-bottom:3px}
+  .inlineform input{width:130px}
+{% endblock %}
+{% block body %}
+<h1>Accounting</h1>
+
+<div class="grid">
+  <div class="stat"><div class="n">₹{{ '{:,.0f}'.format(total_paid) }}</div><div class="l">Revenue (collected)</div></div>
+  <div class="stat"><div class="n">₹{{ '{:,.0f}'.format(gst_amount) }}</div><div class="l">GST ({{ '{:g}'.format(gst_pct) }}%, incl.)</div></div>
+  <div class="stat"><div class="n">₹{{ '{:,.0f}'.format(total_expenses) }}</div><div class="l">Expenses</div></div>
+  <div class="stat hl {{ 'pos' if net_profit >= 0 else 'neg' }}"><div class="n">₹{{ '{:,.0f}'.format(net_profit) }}</div><div class="l">Net profit</div></div>
+</div>
+<p class="muted">Net profit = revenue − GST − expenses. Revenue is treated as GST-inclusive. Set the GST rate &amp; USD→INR (used to price LLM tokens) below.</p>
+
+<div class="card" style="margin:10px 0 8px">
+  <form method="post" action="/admin/accounting/settings" class="inlineform">
+    <div class="fld"><label>GST rate (%)</label><input name="gst_percent" type="number" step="0.01" min="0" value="{{ '{:g}'.format(gst_pct) }}"></div>
+    <div class="fld"><label>USD → INR</label><input name="usd_inr" type="number" step="0.01" min="0" value="{{ '{:g}'.format(usd_inr) }}"></div>
+    <button class="btn" type="submit">Save rates</button>
+  </form>
+</div>
+
+<!-- REVENUE -->
+<h2>Revenue</h2>
+<div class="grid">
+  <div class="stat"><div class="n">₹{{ '{:,.0f}'.format(mrr) }}</div><div class="l">Est. MRR</div></div>
+  <div class="stat"><div class="n">{{ active_by_tier.abhyasi }}</div><div class="l">Active Abhyāsi</div></div>
+  <div class="stat"><div class="n">{{ active_by_tier.sadhaka }}</div><div class="l">Active Sādhaka</div></div>
+  <div class="stat"><div class="n">₹{{ '{:,.0f}'.format(net_revenue) }}</div><div class="l">Revenue net of GST</div></div>
+</div>
+{% if pay_rows %}
+<table>
+  <thead><tr><th style="width:50px">#</th><th>User</th><th class="num" style="width:120px">Amount</th><th style="width:110px">Status</th><th>Razorpay payment</th></tr></thead>
+  <tbody>
+  {% for r in pay_rows %}
+    <tr>
+      <td>{{ r.pay.id }}</td>
+      <td>{{ r.email }}</td>
+      <td class="num">₹{{ '{:,.2f}'.format(r.pay.amount or 0) }}</td>
+      <td><span class="pill {{ 'ok' if r.pay.status in ['captured','paid'] else 'warn' }}">{{ r.pay.status }}</span></td>
+      <td style="font-size:12px">{{ r.pay.razorpay_payment_id or '—' }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}<div class="card"><p>No payments yet — they appear here once subscriptions are charged.</p></div>{% endif %}
+
+<!-- EXPENSES -->
+<h2>Expenses</h2>
+<table>
+  <thead><tr><th>Item</th><th>Detail</th><th class="num" style="width:140px">Cost (₹)</th><th style="width:70px"></th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>AI Mentor — LLM usage</strong></td>
+      <td class="muted">{{ '{:,}'.format(mentor_calls) }} answers (Claude, from token metering)</td>
+      <td class="num">₹{{ '{:,.2f}'.format(mentor_cost) }}</td><td></td>
+    </tr>
+    {% for b in baseline_rows %}
+    <tr>
+      <td>Baseline panel — {{ b.provider }}</td>
+      <td class="muted">{{ b.calls }} pull(s)</td>
+      <td class="num">₹{{ '{:,.2f}'.format(b.cost) }}</td><td></td>
+    </tr>
+    {% endfor %}
+    {% if not baseline_rows %}
+    <tr><td>Baseline panel</td><td class="muted">No LLM responses pulled yet</td><td class="num">₹0.00</td><td></td></tr>
+    {% endif %}
+    {% for e in manual %}
+    <tr>
+      <td>{{ e.description or 'Manual expense' }}</td>
+      <td class="muted">manual · {{ e.created_at.strftime('%Y-%m-%d') if e.created_at else '' }}</td>
+      <td class="num">₹{{ '{:,.2f}'.format(e.amount or 0) }}</td>
+      <td><form method="post" action="/admin/accounting/expense/{{ e.id }}/delete" onsubmit="return confirm('Delete this expense?')"><button class="btn secondary" style="padding:3px 9px;font-size:12px" type="submit">✕</button></form></td>
+    </tr>
+    {% endfor %}
+    <tr class="sub"><td>Total expenses</td><td class="muted">mentor ₹{{ '{:,.0f}'.format(mentor_cost) }} · baselines ₹{{ '{:,.0f}'.format(baseline_cost) }} · manual ₹{{ '{:,.0f}'.format(manual_cost) }}</td><td class="num">₹{{ '{:,.2f}'.format(total_expenses) }}</td><td></td></tr>
+  </tbody>
+</table>
+
+<div class="card" style="margin-top:14px">
+  <form method="post" action="/admin/accounting/expense" class="inlineform">
+    <div class="fld" style="flex:1;min-width:220px"><label>Add an expense (hosting, tools, etc.)</label><input name="description" placeholder="e.g. Railway hosting — July" style="width:100%"></div>
+    <div class="fld"><label>Amount (₹)</label><input name="amount" type="number" step="0.01" min="0" placeholder="0.00"></div>
+    <button class="btn" type="submit">+ Add expense</button>
+  </form>
+</div>
+
+<p class="muted" style="margin-top:14px">LLM costs are estimates from token counts × public list prices (edit prices in <code>app/services/pricing.py</code>) at your USD→INR rate. GST here is a bookkeeping figure, not a filing.</p>
+{% endblock %}

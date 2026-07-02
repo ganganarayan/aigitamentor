@@ -125,14 +125,20 @@ function showTab(qid, name){
   });
   if(name==='type'){ const ta=document.getElementById('ta-'+qid); if(ta) ta.focus(); }
 }
-function fill(qid, data){ PROVS.forEach(p=>{ const el=document.getElementById('resp-'+qid+'-'+p); if(el) el.textContent=(data&&data[p])? data[p] : '— no response —'; }); }
+function fill(qid, data){
+  const answers=(data&&data.answers)||{}, costs=(data&&data.costs)||{};
+  PROVS.forEach(p=>{
+    const el=document.getElementById('resp-'+qid+'-'+p);
+    if(el){ const c=costs[p]; el.textContent=(c!=null?('₹'+c.toFixed(2)+' · '):'')+(answers[p]||'— no response —'); }
+  });
+}
 function setLoading(qid){ PROVS.forEach(p=>{ const el=document.getElementById('resp-'+qid+'-'+p); if(el) el.textContent='Generating…'; }); }
 async function openAI(qid){
   openPanel(qid); showTab(qid,'claude');
   try{
     const r=await fetch('/admin/recorder/'+qid+'/baselines/list');
     const data=await r.json();
-    if(PROVS.some(p=>data[p])) fill(qid,data); else await generate(qid);
+    if(PROVS.some(p=>data.answers && data.answers[p])) fill(qid,data); else await generate(qid);
   }catch(e){ /* leave prompts */ }
 }
 async function generate(qid){

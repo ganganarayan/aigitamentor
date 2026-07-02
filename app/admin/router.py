@@ -26,6 +26,7 @@ from app.models import (
     Contact,
     Conversation,
     Event,
+    Expense,
     Generation,
     KbAnswer,
     KbChunk,
@@ -47,6 +48,7 @@ from app.services import ai_settings
 from app.services import chat as chat_service
 from app.services import ingestion
 from app.services import llm_baselines
+from app.services import pricing
 from app.services import public_kb
 from app.services import secretbox
 from app.services import settings_store
@@ -313,10 +315,16 @@ def recorder_list(request: Request, user: User = Depends(require_admin), db: Ses
     )
 
 
+def _baseline_json(rows) -> dict:
+    return {
+        "answers": {r.provider: (r.answer_text or "") for r in rows},
+        "costs": {r.provider: round(r.cost_inr, 2) for r in rows if r.cost_inr},
+    }
+
+
 @router.get("/recorder/{question_id}/baselines/list", response_class=JSONResponse)
 def baselines_list(question_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)):
-    rows = llm_baselines.baselines_for(db, question_id)
-    return JSONResponse({r.provider: (r.answer_text or "") for r in rows})
+    return JSONResponse(_baseline_json(llm_baselines.baselines_for(db, question_id)))
 
 
 @router.post("/recorder/{question_id}/baselines/generate", response_class=JSONResponse)
@@ -324,8 +332,7 @@ def baselines_generate(question_id: int, user: User = Depends(require_admin), db
     question = db.get(Question, question_id)
     if question is None:
         return JSONResponse({}, status_code=404)
-    rows = llm_baselines.generate_baselines(db, question)
-    return JSONResponse({r.provider: (r.answer_text or "") for r in rows})
+    return JSONResponse(_baseline_json(llm_baselines.generate_baselines(db, question)))
 
 
 @router.get("/recorder/{question_id}", response_class=HTMLResponse)
@@ -855,10 +862,12 @@ def conversation_view(
     )
 
 
-# --- Revenue ----------------------------------------------------------------
+# --- Accounting (revenue + expenses + net profit) ---------------------------
 
-@router.get("/revenue", response_class=HTMLResponse)
-def revenue_page(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+@router.get("/accounting", response_class=HTMLResponse)
+@router.get("/revenue", response_class=HTMLResponse)  # old link → same page
+def accounting_page(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    # --- Revenue ---
     active_by_tier = {}
     for tier in ("abhyasi", "sadhaka"):
         active_by_tier[tier] = db.execute(
@@ -867,20 +876,94 @@ def revenue_page(request: Request, user: User = Depends(require_admin), db: Sess
             )
         ).scalar_one()
     mrr = active_by_tier["abhyasi"] * 499 + active_by_tier["sadhaka"] * 1459
-    total_paid = db.execute(select(func.coalesce(func.sum(Payment.amount), 0))).scalar_one()
+    total_paid = float(db.execute(select(func.coalesce(func.sum(Payment.amount), 0))).scalar_one())
     pays = list(db.execute(select(Payment).order_by(Payment.id.desc()).limit(50)).scalars())
-    rows = [{"pay": p, "email": (db.get(User, p.user_id).email if db.get(User, p.user_id) else "—")} for p in pays]
+    pay_rows = [{"pay": p, "email": (db.get(User, p.user_id).email if db.get(User, p.user_id) else "—")} for p in pays]
+
+    acc = site_settings.get_accounting(db)
+    gst_pct = acc["gst_percent"]
+    usd_inr = acc["usd_inr"]
+    # Prices are GST-inclusive → the GST is the tax portion already inside revenue.
+    gst_amount = round(total_paid * gst_pct / (100 + gst_pct), 2) if gst_pct else 0.0
+    net_revenue = round(total_paid - gst_amount, 2)
+
+    # --- Expenses: AI Mentor (from generations) ---
+    gen_group = db.execute(
+        select(
+            Generation.model,
+            func.coalesce(func.sum(Generation.tokens_in), 0),
+            func.coalesce(func.sum(Generation.tokens_out), 0),
+            func.count(),
+        ).group_by(Generation.model)
+    ).all()
+    mentor_cost = round(sum(pricing.estimate_inr(m, ti, to, usd_inr) for m, ti, to, _ in gen_group), 2)
+    mentor_calls = sum(c for *_, c in gen_group)
+
+    # --- Expenses: baseline panel (per provider, from llm_baselines) ---
+    base_group = db.execute(
+        select(
+            LlmBaseline.provider,
+            func.coalesce(func.sum(LlmBaseline.cost_inr), 0.0),
+            func.count(),
+        ).group_by(LlmBaseline.provider)
+    ).all()
+    baseline_rows = [{"provider": p, "cost": round(float(c or 0), 2), "calls": n} for p, c, n in base_group]
+    baseline_cost = round(sum(r["cost"] for r in baseline_rows), 2)
+
+    # --- Expenses: manual entries ---
+    manual = list(db.execute(select(Expense).order_by(Expense.id.desc()).limit(100)).scalars())
+    manual_cost = round(float(db.execute(select(func.coalesce(func.sum(Expense.amount), 0.0))).scalar_one()), 2)
+
+    total_expenses = round(mentor_cost + baseline_cost + manual_cost, 2)
+    net_profit = round(net_revenue - total_expenses, 2)
+
     return templates.TemplateResponse(
-        "admin/revenue.html",
+        "admin/accounting.html",
         {
-            "request": request,
-            "user": user,
-            "active_by_tier": active_by_tier,
-            "mrr": mrr,
-            "total_paid": total_paid,
-            "rows": rows,
+            "request": request, "user": user,
+            "active_by_tier": active_by_tier, "mrr": mrr,
+            "total_paid": total_paid, "pay_rows": pay_rows,
+            "gst_pct": gst_pct, "usd_inr": usd_inr,
+            "gst_amount": gst_amount, "net_revenue": net_revenue,
+            "mentor_cost": mentor_cost, "mentor_calls": mentor_calls,
+            "baseline_rows": baseline_rows, "baseline_cost": baseline_cost,
+            "manual": manual, "manual_cost": manual_cost,
+            "total_expenses": total_expenses, "net_profit": net_profit,
         },
     )
+
+
+@router.post("/accounting/expense")
+def add_expense(
+    description: str = Form(""), amount: str = Form("0"),
+    user: User = Depends(require_admin), db: Session = Depends(get_db),
+):
+    try:
+        amt = float(amount)
+    except (TypeError, ValueError):
+        amt = 0.0
+    if amt > 0:
+        db.add(Expense(category="manual", description=(description.strip() or None), amount=amt, currency="INR"))
+        db.commit()
+    return RedirectResponse("/admin/accounting", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/accounting/expense/{expense_id}/delete")
+def delete_expense(expense_id: int, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    e = db.get(Expense, expense_id)
+    if e is not None:
+        db.delete(e)
+        db.commit()
+    return RedirectResponse("/admin/accounting", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.post("/accounting/settings")
+def save_accounting_settings(
+    gst_percent: str = Form("18"), usd_inr: str = Form("84"),
+    user: User = Depends(require_admin), db: Session = Depends(get_db),
+):
+    site_settings.save_accounting(db, gst_percent=gst_percent, usd_inr=usd_inr)
+    return RedirectResponse("/admin/accounting", status_code=status.HTTP_303_SEE_OTHER)
 
 
 # --- Contacts ---------------------------------------------------------------

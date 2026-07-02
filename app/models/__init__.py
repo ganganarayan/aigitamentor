@@ -44,7 +44,7 @@ from app.models.acquisition import (
     WebhookLog,
 )
 from app.models.ai_config import AiConfig
-from app.models.operational import LlmBaseline, Recording
+from app.models.operational import Expense, LlmBaseline, Recording
 from app.models.escalation import EscalationState, ResourceGrant, VideoResource
 
 __all__ = [
@@ -92,6 +92,7 @@ __all__ = [
     # operational
     "Recording",
     "LlmBaseline",
+    "Expense",
     # escalation (Chunk 5)
     "VideoResource",
     "ResourceGrant",

@@ -37,7 +37,7 @@ def _prompt(question_text: str) -> str:
     )
 
 
-def _claude(text: str, api_key: str | None, model: str) -> str:
+def _claude(text: str, api_key: str | None, model: str) -> tuple[str, int, int]:
     if not api_key:
         raise RuntimeError("Anthropic API key not configured")
     from app.services import anthropic_client
@@ -48,10 +48,12 @@ def _claude(text: str, api_key: str | None, model: str) -> str:
         max_tokens=_MAX_TOKENS,
         messages=[{"role": "user", "content": _prompt(text)}],
     )
-    return "".join(block.text for block in msg.content if getattr(block, "type", None) == "text")
+    out = "".join(block.text for block in msg.content if getattr(block, "type", None) == "text")
+    u = getattr(msg, "usage", None)
+    return out, (getattr(u, "input_tokens", 0) or 0), (getattr(u, "output_tokens", 0) or 0)
 
 
-def _openai(text: str, api_key: str | None, model: str) -> str:
+def _openai(text: str, api_key: str | None, model: str) -> tuple[str, int, int]:
     if not api_key:
         raise RuntimeError("OpenAI API key not configured")
     import openai
@@ -62,10 +64,11 @@ def _openai(text: str, api_key: str | None, model: str) -> str:
         max_tokens=_MAX_TOKENS,
         messages=[{"role": "user", "content": _prompt(text)}],
     )
-    return resp.choices[0].message.content or ""
+    u = getattr(resp, "usage", None)
+    return (resp.choices[0].message.content or ""), (getattr(u, "prompt_tokens", 0) or 0), (getattr(u, "completion_tokens", 0) or 0)
 
 
-def _gemini(text: str, api_key: str | None, model: str) -> str:
+def _gemini(text: str, api_key: str | None, model: str) -> tuple[str, int, int]:
     if not api_key:
         raise RuntimeError("Gemini API key not configured")
     url = (
@@ -76,10 +79,15 @@ def _gemini(text: str, api_key: str | None, model: str) -> str:
         r = client.post(url, json={"contents": [{"parts": [{"text": _prompt(text)}]}]})
         r.raise_for_status()
         data = r.json()
-    return data["candidates"][0]["content"]["parts"][0]["text"]
+    um = data.get("usageMetadata") or {}
+    return (
+        data["candidates"][0]["content"]["parts"][0]["text"],
+        (um.get("promptTokenCount") or 0),
+        (um.get("candidatesTokenCount") or 0),
+    )
 
 
-def _perplexity(text: str, api_key: str | None, model: str) -> str:
+def _perplexity(text: str, api_key: str | None, model: str) -> tuple[str, int, int]:
     if not api_key:
         raise RuntimeError("Perplexity API key not configured")
     with httpx.Client(timeout=_TIMEOUT) as client:
@@ -90,35 +98,47 @@ def _perplexity(text: str, api_key: str | None, model: str) -> str:
         )
         r.raise_for_status()
         data = r.json()
-    return data["choices"][0]["message"]["content"]
+    u = data.get("usage") or {}
+    return (
+        data["choices"][0]["message"]["content"],
+        (u.get("prompt_tokens") or 0),
+        (u.get("completion_tokens") or 0),
+    )
 
 
 def call_provider(
     provider: str, question_text: str, cfg: ai_settings.AiRuntime
-) -> tuple[str | None, str | None]:
-    """Return (answer, error). Exactly one is non-None. Keys/models come from cfg."""
+) -> tuple[str | None, str | None, int, int, str | None]:
+    """Return (answer, error, tokens_in, tokens_out, model). Keys/models from cfg."""
     bm = cfg.baseline_models or {}
+    model = {
+        "claude": bm.get("claude") or cfg.model_admin,
+        "openai": bm.get("openai") or _OPENAI_MODEL,
+        "gemini": bm.get("gemini") or _GEMINI_MODEL,
+        "perplexity": bm.get("perplexity") or _PERPLEXITY_MODEL,
+    }.get(provider)
+    if model is None:
+        return None, f"Unknown provider: {provider}", 0, 0, None
+    key_provider = "anthropic" if provider == "claude" else provider
+    fn = {"claude": _claude, "openai": _openai, "gemini": _gemini, "perplexity": _perplexity}[provider]
     try:
-        if provider == "claude":
-            return _claude(question_text, cfg.key_for("anthropic"), bm.get("claude") or cfg.model_admin), None
-        if provider == "openai":
-            return _openai(question_text, cfg.key_for("openai"), bm.get("openai") or _OPENAI_MODEL), None
-        if provider == "gemini":
-            return _gemini(question_text, cfg.key_for("gemini"), bm.get("gemini") or _GEMINI_MODEL), None
-        if provider == "perplexity":
-            return _perplexity(question_text, cfg.key_for("perplexity"), bm.get("perplexity") or _PERPLEXITY_MODEL), None
-        return None, f"Unknown provider: {provider}"
+        answer, tin, tout = fn(question_text, cfg.key_for(key_provider), model)
+        return answer, None, tin, tout, model
     except Exception as exc:  # noqa: BLE001 — isolate provider failures
         logger.warning("Baseline provider %s failed: %s", provider, exc)
-        return None, str(exc)
+        return None, str(exc), 0, 0, model
 
 
 def generate_baselines(db: Session, question: Question) -> list[LlmBaseline]:
-    """(Re)generate baselines for a question across the configured providers."""
+    """(Re)generate baselines across providers, recording each call's token cost."""
+    from app.services import pricing, site_settings
+
     cfg = ai_settings.resolved(db)
+    usd_inr = site_settings.get_accounting(db)["usd_inr"]
     results: list[LlmBaseline] = []
     for provider in cfg.baseline_providers:
-        answer, error = call_provider(provider, question.question_text, cfg)
+        answer, error, tin, tout, model = call_provider(provider, question.question_text, cfg)
+        cost = pricing.estimate_inr(model, tin, tout, usd_inr) if answer is not None else 0.0
         row = db.execute(
             select(LlmBaseline).where(
                 LlmBaseline.question_id == question.id, LlmBaseline.provider == provider
@@ -126,10 +146,16 @@ def generate_baselines(db: Session, question: Question) -> list[LlmBaseline]:
         ).scalar_one_or_none()
         text = answer if answer is not None else f"[error] {error}"
         if row is None:
-            row = LlmBaseline(question_id=question.id, provider=provider, answer_text=text)
+            row = LlmBaseline(
+                question_id=question.id, provider=provider, answer_text=text,
+                tokens_in=tin, tokens_out=tout, cost_inr=cost,
+            )
             db.add(row)
         else:
             row.answer_text = text
+            row.tokens_in = tin
+            row.tokens_out = tout
+            row.cost_inr = cost
         results.append(row)
     db.commit()
     return results

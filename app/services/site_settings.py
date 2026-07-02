@@ -66,3 +66,32 @@ def save_escalation(db: Session, *, booking_url: str, assessment_url: str, ttl_h
             "fresh_days": _int(fresh_days, settings.assessment_fresh_days or 15),
         },
     )
+
+
+# --- Accounting (GST rate + USD→INR for LLM cost conversion) -----------------
+
+_ACCOUNTING_KEY = "accounting"
+
+
+def _num(val, default: float) -> float:
+    try:
+        n = float(val)
+        return n if n >= 0 else default
+    except (TypeError, ValueError):
+        return default
+
+
+def get_accounting(db: Session | None = None) -> dict:
+    data = settings_cache.get(_ACCOUNTING_KEY, db)
+    return {
+        "gst_percent": _num(data.get("gst_percent"), 18.0),
+        "usd_inr": _num(data.get("usd_inr"), 84.0),
+    }
+
+
+def save_accounting(db: Session, *, gst_percent, usd_inr) -> None:
+    _put(
+        db,
+        _ACCOUNTING_KEY,
+        {"gst_percent": _num(gst_percent, 18.0), "usd_inr": _num(usd_inr, 84.0)},
+    )
