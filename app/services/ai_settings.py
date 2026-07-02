@@ -188,6 +188,24 @@ def _gemini_models(key: str | None) -> list[str]:
     return list(_GEMINI_FALLBACK)
 
 
+def reencrypt_keys(db: Session) -> int:
+    """Re-encrypt every stored provider API key with the current primary key
+    (after a SETTINGS_ENCRYPTION_KEY rotation). Returns how many were rewritten."""
+    raw = load_raw(db)
+    keys = dict(raw.get("keys") or {})
+    n = 0
+    for prov, val in list(keys.items()):
+        if val:
+            new = secretbox.reencrypt(val)
+            if new and new != val:
+                keys[prov] = new
+                n += 1
+    if n:
+        raw["keys"] = keys
+        save_raw(db, raw)
+    return n
+
+
 def list_provider_models(db: Session, provider: str) -> list[str]:
     """List model ids for a provider to populate the pickers.
 

@@ -691,16 +691,31 @@ def settings_save(
 
 @router.get("/integrations", response_class=HTMLResponse)
 def integrations_page(
-    request: Request, error: str = "", user: User = Depends(require_admin), db: Session = Depends(get_db)
+    request: Request, error: str = "", note: str = "",
+    user: User = Depends(require_admin), db: Session = Depends(get_db),
 ):
     return templates.TemplateResponse(
         "admin/integrations.html",
         {
-            "request": request, "user": user, "error": error,
+            "request": request, "user": user, "error": error, "note": note,
             "sections": settings_store.sections(db),
             "audit": settings_store.recent_audit(db, 30),
             "dedicated_key": secretbox.using_dedicated_key(),
         },
+    )
+
+
+@router.post("/integrations/reencrypt")
+def integrations_reencrypt(user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Re-encrypt every stored secret with the current primary key — the migration/
+    rotation step (set SETTINGS_ENCRYPTION_KEY=NEW,OLD, run this, then drop OLD)."""
+    n = settings_store.reencrypt_all(db) + ai_settings.reencrypt_keys(db)
+    settings_store.audit(db, user.id, user.email, ["all-secrets"], "reencrypt")
+    from urllib.parse import quote
+
+    return RedirectResponse(
+        f"/admin/integrations?note={quote(f'Re-encrypted {n} secret(s) with the current key.')}",
+        status_code=status.HTTP_303_SEE_OTHER,
     )
 
 

@@ -18,17 +18,29 @@
   .muted { opacity:.7; font-size:13px; }
   .hint { font-size:12px; opacity:.6; margin:4px 0 0; }
   .err { background:#fdecea; color:#8a1c12; border-radius:10px; padding:11px 14px; margin-bottom:16px; font-size:14px; }
+  .ok { background:#e3f5e6; color:#1c6b2e; border-radius:10px; padding:11px 14px; margin-bottom:16px; font-size:14px; }
   .note { background:#fff8ea; border:1px solid rgba(201,150,59,.35); border-radius:10px; padding:12px 15px; font-size:13px; margin-bottom:18px; }
+  .recover code { background:rgba(58,40,16,.07); padding:1px 5px; border-radius:4px; }
   table.audit td, table.audit th { font-size:13px; }
 {% endblock %}
 {% block body %}
 <h1>Settings — Integrations</h1>
 <p class="muted" style="margin-top:-6px">Change these without a redeploy. Secrets are encrypted at rest and never shown back — paste to replace, leave blank to keep, tick <em>clear</em> to remove (falls back to the env var). A DB value always wins over the Railway env var.</p>
 {% if error %}<div class="err">{{ error }}</div>{% endif %}
+{% if note %}<div class="ok">{{ note }}</div>{% endif %}
 
 <div class="note">
   {% if dedicated_key %}🔐 Secrets are encrypted with a <strong>dedicated</strong> SETTINGS_ENCRYPTION_KEY.
   {% else %}⚠️ Secrets are currently encrypted with a key derived from <code>JWT_SECRET</code>. Set a dedicated <code>SETTINGS_ENCRYPTION_KEY</code> in Railway (and keep a copy somewhere safe) so rotating JWT_SECRET never orphans stored secrets.{% endif %}
+</div>
+
+<div class="panel recover">
+  <h3>🔑 Key backup &amp; rotation <span class="muted">— you can't get locked out</span></h3>
+  <p class="muted" style="margin-top:0">Everything stored here is a <strong>convenience copy</strong>: every key can be re-issued from its provider (Anthropic, Google, Razorpay, Meta) or re-pasted here, and the Railway env vars stay a live fallback. A lost encryption key never loses the app or your data — worst case, you re-enter keys once.</p>
+  <p class="muted"><strong>Rotate the key / migrate platforms with zero loss:</strong> set <code>SETTINGS_ENCRYPTION_KEY=NEWKEY,OLDKEY</code> (new first, old second), deploy, click <em>Re-encrypt</em>, then drop <code>OLDKEY</code>. Both keys decrypt during the switch, so nothing is ever stranded.</p>
+  <form method="post" action="/admin/integrations/reencrypt">
+    <button class="btn secondary" type="submit">Re-encrypt all secrets with the current key</button>
+  </form>
 </div>
 
 <form method="post" action="/admin/integrations">

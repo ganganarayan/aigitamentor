@@ -196,6 +196,22 @@ def save(db: Session, updates: dict[str, str], clears: list[str], *, actor_id=No
     audit(db, actor_id, actor_email, changed, "update")
 
 
+def reencrypt_all(db: Session) -> int:
+    """Re-encrypt every stored integration secret with the current primary key.
+    Used after rotating SETTINGS_ENCRYPTION_KEY. Returns how many were rewritten."""
+    raw = dict(_raw(db))
+    n = 0
+    for f in FIELDS:
+        if f.secret and raw.get(f.name):
+            new = secretbox.reencrypt(raw[f.name])
+            if new and new != raw[f.name]:
+                raw[f.name] = new
+                n += 1
+    if n:
+        _write(db, raw)
+    return n
+
+
 def recent_audit(db: Session, limit: int = 40) -> list[Event]:
     return list(
         db.execute(
