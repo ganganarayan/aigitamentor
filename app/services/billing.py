@@ -11,21 +11,22 @@ a friendly "not available yet" instead of crashing.
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import logging
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Payment, Setting, Subscription, User
+from app.models import Payment, Subscription, User
 from app.services import settings_store
 
 logger = logging.getLogger("app.billing")
 
-# Display prices (INR/month). The authoritative amount lives in the Razorpay plan.
+# Prices (INR/month). Charged as a one-time Razorpay Order per month (no Plans /
+# Subscriptions setup needed — Orders work on any activated account).
 TIER_PRICE = {"abhyasi": 499, "sadhaka": 1459}
 PAID_TIERS = ("abhyasi", "sadhaka")
-_AUTOPLAN_KEY = "razorpay_autoplans"  # cached plan ids the app created via the API
 
 
 def _client(db: Session):
@@ -39,109 +40,72 @@ def _client(db: Session):
 
 
 def diagnose(db: Session) -> tuple[bool, str]:
-    """Full dry-run of the real checkout path, returning (ok, human message). Tests
-    auth → plan.create → subscription.create, cancelling the test subscription so
-    it leaves nothing live. Pinpoints the exact failing step with Razorpay's own
-    message."""
+    """Auth + a test Order (the actual checkout mechanism). Orders work on any
+    activated account — no Subscriptions/Plans setup needed."""
     if not settings_store.razorpay_enabled(db):
         return False, "Key ID / Key Secret are not set."
     try:
         client = _client(db)
     except Exception as exc:  # noqa: BLE001
         return False, str(exc)
-    try:  # 1) auth — side-effect-free
-        client.payment.all({"count": 1})
+    try:
+        order = client.order.create({"amount": 100, "currency": "INR", "notes": {"diagnostic": "1"}})
     except Exception as exc:  # noqa: BLE001
-        return False, f"Authentication failed — the Key ID and Key Secret don't match. Razorpay said: {exc}"
-    try:  # 2) plan (the app auto-creates + caches this)
-        plan = _resolve_plan(db, client, "abhyasi")
-    except Exception as exc:  # noqa: BLE001
-        return False, f"Plan creation failed. Razorpay said: {exc}"
-    try:  # 3) subscription — create a throwaway one, then cancel it immediately
-        sub = client.subscription.create(
-            {"plan_id": plan, "total_count": 1, "customer_notify": 0, "notes": {"diagnostic": "1"}}
-        )
-        sid = sub.get("id")
-        if sid:
-            try:
-                client.subscription.cancel(sid, {"cancel_at_cycle_end": 0})
-            except Exception:  # noqa: BLE001
-                pass  # cleanup best-effort; the diagnostic already succeeded
-    except Exception as exc:  # noqa: BLE001
-        return False, f"Subscription creation failed. Razorpay said: {exc}"
-    return True, "Connected — auth, plan, and a test subscription all worked. Checkout should go through."
+        return False, f"Order creation failed — check the Key ID/Secret. Razorpay said: {exc}"
+    return True, f"Connected — keys valid and Checkout works (test order {order.get('id')})."
 
 
-def _autoplans(db: Session) -> dict:
-    row = db.execute(select(Setting).where(Setting.key == _AUTOPLAN_KEY)).scalar_one_or_none()
-    return dict(row.value) if row and isinstance(row.value, dict) else {}
-
-
-def _cache_autoplan(db: Session, tier: str, plan_id: str) -> None:
-    row = db.execute(select(Setting).where(Setting.key == _AUTOPLAN_KEY)).scalar_one_or_none()
-    data = dict(row.value) if row and isinstance(row.value, dict) else {}
-    data[tier] = plan_id
-    if row is None:
-        db.add(Setting(key=_AUTOPLAN_KEY, value=data))
-    else:
-        row.value = data
-    db.commit()
-
-
-def _resolve_plan(db: Session, client, tier: str) -> str:
-    """Get a Razorpay plan id WITHOUT anyone touching the dashboard.
-
-    Order: an explicitly-configured ``plan_…`` id (Settings → Integrations) → a
-    plan the app already auto-created (cached) → otherwise create one via the API
-    now and cache it. So GND never creates a plan or supplies a plan id.
-    """
-    configured = settings_store.get(f"razorpay_plan_{tier}", db)
-    if configured and str(configured).startswith("plan_"):
-        return configured
-    cached = _autoplans(db).get(tier)
-    if cached and str(cached).startswith("plan_"):
-        return cached
-    price = TIER_PRICE.get(tier, 0)
-    created = client.plan.create({
-        "period": "monthly",
-        "interval": 1,
-        "item": {"name": f"AI Gita Mentor — {tier.title()}", "amount": int(price) * 100, "currency": "INR"},
-        "notes": {"tier": tier},
-    })
-    plan_id = created.get("id")
-    if not plan_id:
-        raise RuntimeError("Razorpay plan creation returned no id.")
-    _cache_autoplan(db, tier, plan_id)
-    logger.info("Auto-created Razorpay plan %s for %s", plan_id, tier)
-    return plan_id
-
-
-def create_subscription(db: Session, user: User, tier: str) -> dict:
-    """Create a Razorpay subscription (plan auto-created via API — no dashboard
-    setup) and a local record. Returns the subscription dict (has ``short_url``)."""
+def create_order(db: Session, user: User, tier: str) -> dict:
+    """Create a Razorpay Order for one month of the tier — one-time payment via
+    Checkout (no Plans, no Subscriptions). Returns the order dict (id + amount)."""
     if tier not in PAID_TIERS:
         raise RuntimeError("Unknown plan.")
     client = _client(db)
-    plan = _resolve_plan(db, client, tier)
-    sub = client.subscription.create(
-        {
-            "plan_id": plan,
-            "total_count": 12,
-            "customer_notify": 1,
-            "notes": {"user_id": str(user.id), "tier": tier},
-        }
-    )
-    db.add(
-        Subscription(
-            user_id=user.id,
-            tier=tier,
-            status="created",
-            razorpay_subscription_id=sub.get("id"),
-            razorpay_plan_id=plan,
-        )
-    )
+    return client.order.create({
+        "amount": int(TIER_PRICE[tier]) * 100,  # paise
+        "currency": "INR",
+        "notes": {"user_id": str(user.id), "tier": tier},
+    })
+
+
+def verify_and_activate(db: Session, user: User, *, order_id: str, payment_id: str, signature: str) -> tuple[bool, str]:
+    """Verify the Checkout signature, record the payment (idempotently), and grant
+    30 days of the tier. Returns (ok, tier-or-error-message)."""
+    client = _client(db)
+    try:
+        client.utility.verify_payment_signature({
+            "razorpay_order_id": order_id or "",
+            "razorpay_payment_id": payment_id or "",
+            "razorpay_signature": signature or "",
+        })
+    except Exception:  # noqa: BLE001
+        return False, "Payment could not be verified."
+    try:
+        order = client.order.fetch(order_id)
+        pay = client.payment.fetch(payment_id)
+    except Exception as exc:  # noqa: BLE001
+        return False, f"Could not fetch the payment: {exc}"
+    tier = (order.get("notes") or {}).get("tier")
+    if tier not in PAID_TIERS:
+        return False, "Unknown tier on the order."
+    amount = (pay.get("amount") or 0) / 100.0
+    if db.execute(select(Payment).where(Payment.razorpay_payment_id == payment_id)).scalar_one_or_none() is None:
+        db.add(Payment(
+            user_id=user.id, razorpay_payment_id=payment_id, razorpay_order_id=order_id,
+            amount=amount, currency=pay.get("currency", "INR"), status=pay.get("status", "captured"),
+        ))
+    now = dt.datetime.now(dt.timezone.utc)
+    base = user.plan_expires_at if (user.plan_expires_at and user.plan_expires_at > now) else now
+    user.tier = tier
+    user.plan_expires_at = base + dt.timedelta(days=30)
     db.commit()
-    return sub
+    try:
+        from app.services import meta
+
+        meta.track_purchase(user.email, value=amount, phone=user.phone, external_id=user.id, event_id=payment_id)
+    except Exception:  # noqa: BLE001
+        logger.warning("Purchase event failed", exc_info=True)
+    return True, tier
 
 
 def _set_tier(db: Session, sub_row: Subscription, active: bool) -> None:

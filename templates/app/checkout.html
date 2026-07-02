@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Secure checkout · AI Gita Mentor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--saffron:#E8821A;--saffron-dk:#C4651A;--gold:#C9963B;--cream:#FAF3E8;--dark:#2E1F0F;--ink:#3A2810;--ink-lt:#7A5C38}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Jost',sans-serif;font-weight:300;color:var(--ink);background:var(--cream);min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px}
+  .om{font-size:44px;color:var(--gold)}
+  h1{font-family:'Cormorant Garamond',serif;font-weight:600;font-size:26px;color:var(--dark);margin:8px 0 6px}
+  p{color:var(--ink-lt);line-height:1.7}
+  a{color:var(--saffron-dk);text-decoration:none}
+  .btn{display:inline-block;margin-top:18px;padding:11px 26px;background:var(--saffron);color:#fff;border:none;border-radius:999px;font:inherit;cursor:pointer}
+</style>
+</head>
+<body>
+<div>
+  <div class="om">ॐ</div>
+  <h1>Opening secure checkout…</h1>
+  <p>Complete your payment in the Razorpay window.<br>
+     If it doesn't appear, <a href="#" onclick="rzp.open();return false;">click here</a>.</p>
+  <p style="margin-top:16px"><a href="/app/upgrade">← Back to plans</a></p>
+</div>
+
+<form id="vf" method="post" action="/billing/verify" style="display:none">
+  <input type="hidden" name="razorpay_payment_id">
+  <input type="hidden" name="razorpay_order_id">
+  <input type="hidden" name="razorpay_signature">
+</form>
+
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+  var options = {
+    key: "{{ key_id }}",
+    amount: {{ amount }},
+    currency: "INR",
+    name: "AI Gita Mentor",
+    description: "{{ tier|capitalize }} — 1 month",
+    order_id: "{{ order_id }}",
+    prefill: { name: "{{ user.name or '' }}", email: "{{ user.email }}", contact: "{{ user.phone or '' }}" },
+    theme: { color: "#E8821A" },
+    handler: function (r) {
+      var f = document.getElementById('vf');
+      f.querySelector('[name=razorpay_payment_id]').value = r.razorpay_payment_id;
+      f.querySelector('[name=razorpay_order_id]').value = r.razorpay_order_id;
+      f.querySelector('[name=razorpay_signature]').value = r.razorpay_signature;
+      f.submit();
+    },
+    modal: { ondismiss: function () { window.location = '/app/upgrade'; } }
+  };
+  var rzp = new Razorpay(options);
+  rzp.open();
+</script>
+</body>
+</html>

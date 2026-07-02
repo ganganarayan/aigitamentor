@@ -41,6 +41,7 @@ def upgrade_page(
 
 @router.post("/billing/subscribe")
 def subscribe(
+    request: Request,
     tier: str = Form(...),
     user: User = Depends(require_user),
     db: Session = Depends(get_db),
@@ -48,21 +49,40 @@ def subscribe(
     if tier not in billing.PAID_TIERS:
         return RedirectResponse("/app/upgrade?error=Unknown+plan", status_code=status.HTTP_303_SEE_OTHER)
     try:
-        sub = billing.create_subscription(db, user, tier)
+        order = billing.create_order(db, user, tier)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Subscription create failed: %s", exc)
-        # Admins get the real Razorpay error (for debugging); users get a soft message.
-        if getattr(user, "role", "") == "admin":
+        logger.warning("Order create failed: %s", exc)
+        if getattr(user, "role", "") == "admin":  # admins see the real error
             from urllib.parse import quote
 
             msg = quote(f"[admin] {exc}")
         else:
             msg = "Checkout+is+not+available+right+now.+Please+try+again+soon."
         return RedirectResponse(f"/app/upgrade?error={msg}", status_code=status.HTTP_303_SEE_OTHER)
-    short_url = sub.get("short_url")
-    if not short_url:
-        return RedirectResponse("/app/upgrade?error=Could+not+start+checkout", status_code=status.HTTP_303_SEE_OTHER)
-    return RedirectResponse(short_url, status_code=status.HTTP_303_SEE_OTHER)
+    return templates.TemplateResponse(
+        "app/checkout.html",
+        {
+            "request": request, "user": user, "tier": tier,
+            "order_id": order.get("id"), "amount": order.get("amount"),
+            "key_id": settings_store.get("razorpay_key_id", db),
+        },
+    )
+
+
+@router.post("/billing/verify")
+async def verify(request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    form = await request.form()
+    ok, result = billing.verify_and_activate(
+        db, user,
+        order_id=str(form.get("razorpay_order_id", "")),
+        payment_id=str(form.get("razorpay_payment_id", "")),
+        signature=str(form.get("razorpay_signature", "")),
+    )
+    if ok:
+        return RedirectResponse("/app?welcome=1", status_code=status.HTTP_303_SEE_OTHER)
+    from urllib.parse import quote
+
+    return RedirectResponse(f"/app/upgrade?error={quote(result)}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/billing/cancel")
