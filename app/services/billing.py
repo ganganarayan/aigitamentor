@@ -39,26 +39,37 @@ def _client(db: Session):
 
 
 def diagnose(db: Session) -> tuple[bool, str]:
-    """Check the Razorpay setup and return (ok, human message). Pinpoints the two
-    usual failures: wrong key (auth) vs Subscriptions not enabled on the account."""
+    """Full dry-run of the real checkout path, returning (ok, human message). Tests
+    auth → plan.create → subscription.create, cancelling the test subscription so
+    it leaves nothing live. Pinpoints the exact failing step with Razorpay's own
+    message."""
     if not settings_store.razorpay_enabled(db):
         return False, "Key ID / Key Secret are not set."
     try:
         client = _client(db)
     except Exception as exc:  # noqa: BLE001
         return False, str(exc)
-    try:  # authenticated, side-effect-free — proves the key pair is valid
+    try:  # 1) auth — side-effect-free
         client.payment.all({"count": 1})
     except Exception as exc:  # noqa: BLE001
         return False, f"Authentication failed — the Key ID and Key Secret don't match. Razorpay said: {exc}"
-    try:  # proves the Subscriptions/Plans API is usable on this account
-        client.plan.all({"count": 1})
+    try:  # 2) plan (the app auto-creates + caches this)
+        plan = _resolve_plan(db, client, "abhyasi")
     except Exception as exc:  # noqa: BLE001
-        return False, (
-            "Keys are valid, but the Plans/Subscriptions API failed — Subscriptions may not be "
-            f"enabled on this Razorpay account (enable it in the dashboard). Razorpay said: {exc}"
+        return False, f"Plan creation failed. Razorpay said: {exc}"
+    try:  # 3) subscription — create a throwaway one, then cancel it immediately
+        sub = client.subscription.create(
+            {"plan_id": plan, "total_count": 1, "customer_notify": 0, "notes": {"diagnostic": "1"}}
         )
-    return True, "Connected — keys are valid and Subscriptions are accessible."
+        sid = sub.get("id")
+        if sid:
+            try:
+                client.subscription.cancel(sid, {"cancel_at_cycle_end": 0})
+            except Exception:  # noqa: BLE001
+                pass  # cleanup best-effort; the diagnostic already succeeded
+    except Exception as exc:  # noqa: BLE001
+        return False, f"Subscription creation failed. Razorpay said: {exc}"
+    return True, "Connected — auth, plan, and a test subscription all worked. Checkout should go through."
 
 
 def _autoplans(db: Session) -> dict:
