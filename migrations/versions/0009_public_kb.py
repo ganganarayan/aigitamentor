@@ -1,5 +1,10 @@
 """public knowledge graph: public_kb_articles (System A, crawlable /learn)
 
+Idempotent: migration 0001 builds the schema via ``Base.metadata.create_all``,
+which already creates ``public_kb_articles`` (its model has existed since day
+one). So on every real database the table is already present — we only create it
+if somehow missing, and otherwise just advance the version.
+
 Revision ID: 0009_public_kb
 Revises: 0008_escalation
 Create Date: 2026-07-02
@@ -17,6 +22,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    insp = sa.inspect(op.get_bind())
+    if insp.has_table("public_kb_articles"):
+        return  # already built by 0001's create_all — nothing to do
+
     op.create_table(
         "public_kb_articles",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
@@ -46,4 +55,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_table("public_kb_articles")
+    insp = sa.inspect(op.get_bind())
+    if insp.has_table("public_kb_articles"):
+        op.drop_table("public_kb_articles")
