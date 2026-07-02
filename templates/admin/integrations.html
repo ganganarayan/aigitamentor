@@ -30,8 +30,8 @@
 {% if note %}<div class="ok">{{ note }}</div>{% endif %}
 
 <div class="note">
-  {% if dedicated_key %}🔐 Secrets are encrypted with a <strong>dedicated</strong> SETTINGS_ENCRYPTION_KEY.
-  {% else %}⚠️ Secrets are currently encrypted with a key derived from <code>JWT_SECRET</code>. Set a dedicated <code>SETTINGS_ENCRYPTION_KEY</code> in Railway (and keep a copy somewhere safe) so rotating JWT_SECRET never orphans stored secrets.{% endif %}
+  {% if dedicated_key %}🔐 Secrets are encrypted at rest with a <strong>dedicated</strong> SETTINGS_ENCRYPTION_KEY.
+  {% else %}🔐 Secrets are encrypted at rest using your <code>JWT_SECRET</code> — no separate key to manage. A leaked DB backup is useless without it. (Optionally set a dedicated <code>SETTINGS_ENCRYPTION_KEY</code> to decouple from session-key rotation.){% endif %}
 </div>
 
 <div class="panel recover">
