@@ -32,6 +32,10 @@ httpx==0.28.1
 
 # --- Payments / integrations (used in later phases; safe pure-python deps) ---
 razorpay==1.4.2
+# razorpay 1.4.2 does `import pkg_resources` at import time; setuptools 81+ removed
+# pkg_resources, so pin a setuptools that still ships it (else `import razorpay`
+# raises ModuleNotFoundError: pkg_resources and every checkout fails).
+setuptools==75.8.2
 google-api-python-client==2.157.0
 google-auth==2.37.0
 google-auth-oauthlib==1.2.1
