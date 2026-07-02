@@ -1,0 +1,53 @@
+{% extends "admin/base.html" %}
+{% block title %}Escalation · Knowledge Studio{% endblock %}
+{% block styles %}
+  .panel{background:#fff;border:1px solid rgba(201,150,59,.25);border-radius:12px;padding:22px;max-width:640px}
+  .muted{opacity:.7;font-size:14px}
+  .row{display:flex;gap:16px;flex-wrap:wrap}
+  .row > div{flex:1;min-width:150px}
+  .hint{font-size:12px;opacity:.6;margin:5px 0 14px}
+  .flow{max-width:640px;margin-top:20px;font-size:13px;color:var(--ink);background:#fff;border:1px dashed rgba(201,150,59,.4);border-radius:12px;padding:14px 18px;line-height:1.7}
+{% endblock %}
+{% block body %}
+<h1>Escalation</h1>
+<p class="muted" style="margin-top:-6px;max-width:640px">
+  When a user shows a recurring <strong>anger</strong> pattern, the mentor first offers a GND video, then —
+  if asked for another way — a paid 1-on-1 with GND. These links power that flow. They're stored here
+  (not in env), so you can change them anytime without a redeploy.
+</p>
+
+<div class="panel">
+  <form method="post" action="/admin/escalation">
+    <label>1-on-1 booking / payment link</label>
+    <input name="booking_url" value="{{ cfg.booking_url }}" placeholder="https://…">
+    <p class="hint">Shared when the user wants the call and their assessment is recent (≤ fresh window). Pricing lives on that page — the mentor never quotes it.</p>
+
+    <label>Emotional assessment link</label>
+    <input name="assessment_url" value="{{ cfg.assessment_url }}" placeholder="https://…">
+    <p class="hint">Shared first when the user's assessment is stale or missing, with a nudge to take it before the call.</p>
+
+    <div class="row">
+      <div>
+        <label>Video link lifetime (hours)</label>
+        <input name="ttl_hours" type="number" min="1" value="{{ cfg.ttl_hours }}">
+        <p class="hint">How long a prescribed video page stays live.</p>
+      </div>
+      <div>
+        <label>Assessment fresh window (days)</label>
+        <input name="fresh_days" type="number" min="1" value="{{ cfg.fresh_days }}">
+        <p class="hint">Newer than this → booking link; older/blank → assessment first.</p>
+      </div>
+    </div>
+
+    <button class="btn" type="submit" style="margin-top:8px">Save</button>
+  </form>
+</div>
+
+<div class="flow">
+  <strong>The flow:</strong> recurring anger → offer GND video → <em>yes</em> → private 24h page
+  (from the <a href="/admin/videos">video library</a>, {{ active_videos }} active) → <em>“any other way?”</em>
+  → propose paid 1-on-1 → <em>“tell me more”</em> → it's a paid consult → <em>yes</em> →
+  assessment-gated link (booking if recent, else assessment first).
+  Set each user's assessment date on <a href="/admin/users">Users → edit</a>.
+</div>
+{% endblock %}

@@ -48,6 +48,7 @@ from app.services import chat as chat_service
 from app.services import ingestion
 from app.services import llm_baselines
 from app.services import public_kb
+from app.services import site_settings
 from app.services import recordings as rec_service
 from app.services.seed import seed_starter
 from app.templating import templates
@@ -869,6 +870,34 @@ def videos_delete(video_id: int, user: User = Depends(require_admin), db: Sessio
         db.delete(v)
         db.commit()
     return RedirectResponse("/admin/videos", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# --- Escalation settings (Chunk 5): the 1-on-1 + assessment links -------------
+
+@router.get("/escalation", response_class=HTMLResponse)
+def escalation_page(request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+    cfg = site_settings.get_escalation(db)
+    videos = db.execute(select(func.count()).select_from(VideoResource).where(VideoResource.active.is_(True))).scalar_one()
+    return templates.TemplateResponse(
+        "admin/escalation.html",
+        {"request": request, "user": user, "cfg": cfg, "active_videos": videos},
+    )
+
+
+@router.post("/escalation")
+def escalation_save(
+    booking_url: str = Form(""),
+    assessment_url: str = Form(""),
+    ttl_hours: str = Form("24"),
+    fresh_days: str = Form("15"),
+    user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    site_settings.save_escalation(
+        db, booking_url=booking_url, assessment_url=assessment_url,
+        ttl_hours=ttl_hours, fresh_days=fresh_days,
+    )
+    return RedirectResponse("/admin/escalation", status_code=status.HTTP_303_SEE_OTHER)
 
 
 # --- Public KB (Phase 7): promote Seeker answers to the crawlable /learn ------

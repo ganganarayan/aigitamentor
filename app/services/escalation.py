@@ -39,7 +39,7 @@ from app.models import (
     User,
     VideoResource,
 )
-from app.services import memory, safety
+from app.services import memory, safety, site_settings
 
 logger = logging.getLogger("app.escalation")
 
@@ -295,8 +295,9 @@ def plan(db: Session, user: User, conversation: Conversation, message: str) -> D
 
         if stage == SHARED_LINK:
             if intent == "already_taken":
+                fresh_days = site_settings.get_escalation(db)["fresh_days"]
                 return Directive(
-                    inject=_ALREADY_TAKEN.format(days=settings.assessment_fresh_days),
+                    inject=_ALREADY_TAKEN.format(days=fresh_days),
                     next_stage=CLOSED,
                     action="assessment_again",
                 )
@@ -310,7 +311,9 @@ def plan(db: Session, user: User, conversation: Conversation, message: str) -> D
 
 # --- finalizing (called after the mentor answers) ---------------------------
 
-def _mint_video_url(db: Session, user: User, topic: str) -> tuple[str | None, dt.datetime | None]:
+def _mint_video_url(
+    db: Session, user: User, topic: str, ttl_hours: int
+) -> tuple[str | None, dt.datetime | None]:
     video = db.execute(
         select(VideoResource)
         .where(VideoResource.topic == topic, VideoResource.active.is_(True))
@@ -319,7 +322,7 @@ def _mint_video_url(db: Session, user: User, topic: str) -> tuple[str | None, dt
     if video is None:
         return None, None
     now = dt.datetime.now(dt.timezone.utc)
-    expires = now + dt.timedelta(hours=settings.resource_link_ttl_hours)
+    expires = now + dt.timedelta(hours=ttl_hours)
     token = secrets.token_urlsafe(24)
     db.add(
         ResourceGrant(
@@ -332,14 +335,14 @@ def _mint_video_url(db: Session, user: User, topic: str) -> tuple[str | None, dt
     return f"{base}/app/resource/{token}", expires
 
 
-def _assessment_fresh(user: User) -> bool:
+def _assessment_fresh(user: User, fresh_days: int) -> bool:
     taken = user.assessment_taken_at
     if taken is None:
         return False
     if taken.tzinfo is None:
         taken = taken.replace(tzinfo=dt.timezone.utc)
     age = dt.datetime.now(dt.timezone.utc) - taken
-    return age.days < settings.assessment_fresh_days
+    return age.days < fresh_days
 
 
 def finalize(
@@ -349,13 +352,14 @@ def finalize(
     """Append the real link(s) the directive calls for, persist the stage, log. Never raises."""
     text = answer_text or ""
     try:
+        cfg = site_settings.get_escalation(db)
         if directive.action == "video":
-            url, _exp = _mint_video_url(db, user, directive.topic)
+            url, _exp = _mint_video_url(db, user, directive.topic, cfg["ttl_hours"])
             if url:
                 text += (
                     f"\n\n▶ **GND's video on this:** {url}\n"
                     f"*This private link is just for you and expires in "
-                    f"{settings.resource_link_ttl_hours} hours.*"
+                    f"{cfg['ttl_hours']} hours.*"
                 )
                 _log(db, user.id, "escalation_video_sent", {"conversation_id": conversation.id, "topic": directive.topic})
             else:
@@ -368,15 +372,15 @@ def finalize(
                 directive.next_stage = OFFERED_1ON1
 
         elif directive.action == "oneonone":
-            if _assessment_fresh(user):
-                url = settings.oneonone_booking_url
+            if _assessment_fresh(user, cfg["fresh_days"]):
+                url = cfg["booking_url"]
                 if url:
                     text += f"\n\n🗓 **Book your 1-on-1 with GND here:** {url}"
                     _log(db, user.id, "escalation_booking_shared", {"conversation_id": conversation.id})
                 else:
                     text += "\n\nI'll have GND's team share the booking link with you shortly."
             else:
-                url = settings.assessment_url
+                url = cfg["assessment_url"]
                 if url:
                     text += (
                         f"\n\nBefore the call, one thing that makes it far more useful: a quick "
@@ -388,7 +392,7 @@ def finalize(
                     text += "\n\nI'll have GND's team guide you through the next step shortly."
 
         elif directive.action == "assessment_again":
-            url = settings.assessment_url
+            url = cfg["assessment_url"]
             if url:
                 text += f"\n\nHere it is again whenever you're ready: {url}"
 
