@@ -9,10 +9,9 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.auth.deps import require_user
-from app.config import settings
 from app.db import get_db
 from app.models import User
-from app.services import billing
+from app.services import billing, settings_store
 from app.templating import templates
 
 logger = logging.getLogger("app.billing.router")
@@ -33,7 +32,7 @@ def upgrade_page(
             "request": request,
             "user": user,
             "prices": billing.TIER_PRICE,
-            "razorpay_enabled": settings.razorpay_enabled,
+            "razorpay_enabled": settings_store.razorpay_enabled(db),
             "active_sub": current,
             "error": error,
         },

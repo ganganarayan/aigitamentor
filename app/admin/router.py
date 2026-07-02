@@ -48,6 +48,8 @@ from app.services import chat as chat_service
 from app.services import ingestion
 from app.services import llm_baselines
 from app.services import public_kb
+from app.services import secretbox
+from app.services import settings_store
 from app.services import site_settings
 from app.services import recordings as rec_service
 from app.services.seed import seed_starter
@@ -683,6 +685,38 @@ def settings_save(
     if error:
         return RedirectResponse(f"/admin/settings?error={error}", status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse("/admin/settings", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# --- Integrations (DB-backed env: Google, Razorpay, Meta, Video/CDN) --------
+
+@router.get("/integrations", response_class=HTMLResponse)
+def integrations_page(
+    request: Request, error: str = "", user: User = Depends(require_admin), db: Session = Depends(get_db)
+):
+    return templates.TemplateResponse(
+        "admin/integrations.html",
+        {
+            "request": request, "user": user, "error": error,
+            "sections": settings_store.sections(db),
+            "audit": settings_store.recent_audit(db, 30),
+            "dedicated_key": secretbox.using_dedicated_key(),
+        },
+    )
+
+
+@router.post("/integrations")
+async def integrations_save(
+    request: Request, user: User = Depends(require_admin), db: Session = Depends(get_db)
+):
+    form = await request.form()
+    updates: dict[str, str] = {}
+    clears: list[str] = []
+    for f in settings_store.FIELDS:
+        updates[f.name] = str(form.get(f.name, "") or "")
+        if form.get("clear_" + f.name):
+            clears.append(f.name)
+    settings_store.save(db, updates, clears, actor_id=user.id, actor_email=user.email)
+    return RedirectResponse("/admin/integrations", status_code=status.HTTP_303_SEE_OTHER)
 
 
 # --- AI Config (versioned system prompt) -----------------------------------

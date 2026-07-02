@@ -15,14 +15,14 @@ import logging
 import time
 import uuid
 
-from app.config import settings
+from app.services import settings_store
 
 logger = logging.getLogger("app.meta")
 _GRAPH = "https://graph.facebook.com/v19.0"
 
 
 def enabled() -> bool:
-    return bool(settings.meta_pixel_id and settings.meta_capi_token)
+    return settings_store.meta_enabled()
 
 
 def new_event_id() -> str:
@@ -92,12 +92,13 @@ def send(
     if value is not None:
         event["custom_data"] = {"value": round(float(value), 2), "currency": currency}
     payload: dict = {"data": [event]}
-    if settings.meta_test_event_code:
-        payload["test_event_code"] = settings.meta_test_event_code
+    test_code = settings_store.get("meta_test_event_code")
+    if test_code:
+        payload["test_event_code"] = test_code
     try:
         httpx.post(
-            f"{_GRAPH}/{settings.meta_pixel_id}/events",
-            params={"access_token": settings.meta_capi_token},
+            f"{_GRAPH}/{settings_store.get('meta_pixel_id')}/events",
+            params={"access_token": settings_store.get("meta_capi_token")},
             json=payload,
             timeout=10,
         )

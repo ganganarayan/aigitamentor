@@ -12,7 +12,16 @@ from markupsafe import Markup
 from app.config import settings
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+
+def _dynamic_globals(request):
+    """Per-render globals that come from the DB-backed settings (cached)."""
+    from app.services import settings_store
+
+    return {"meta_pixel_id": settings_store.get("meta_pixel_id") or ""}
+
+
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR), context_processors=[_dynamic_globals])
 
 
 def _markdown_lite(text: str | None) -> Markup:
@@ -31,4 +40,3 @@ templates.env.filters["md"] = _markdown_lite
 # auth/app links with this so users land on `app.` for sign-in. Empty locally →
 # links resolve relative to the current host.
 templates.env.globals["app_url"] = (settings.app_url or "").rstrip("/")
-templates.env.globals["meta_pixel_id"] = settings.meta_pixel_id or ""

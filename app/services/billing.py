@@ -17,8 +17,8 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.models import Payment, Subscription, User
+from app.services import settings_store
 
 logger = logging.getLogger("app.billing")
 
@@ -27,19 +27,21 @@ TIER_PRICE = {"abhyasi": 499, "sadhaka": 1459}
 PAID_TIERS = ("abhyasi", "sadhaka")
 
 
-def _plan_id(tier: str) -> str | None:
+def _plan_id(db: Session, tier: str) -> str | None:
     return {
-        "abhyasi": settings.razorpay_plan_abhyasi,
-        "sadhaka": settings.razorpay_plan_sadhaka,
+        "abhyasi": settings_store.get("razorpay_plan_abhyasi", db),
+        "sadhaka": settings_store.get("razorpay_plan_sadhaka", db),
     }.get(tier)
 
 
-def _client():
-    if not settings.razorpay_enabled:
+def _client(db: Session):
+    if not settings_store.razorpay_enabled(db):
         raise RuntimeError("Razorpay is not configured.")
     import razorpay
 
-    return razorpay.Client(auth=(settings.razorpay_key_id, settings.razorpay_key_secret))
+    return razorpay.Client(
+        auth=(settings_store.get("razorpay_key_id", db), settings_store.get("razorpay_key_secret", db))
+    )
 
 
 def create_subscription(db: Session, user: User, tier: str) -> dict:
@@ -47,10 +49,10 @@ def create_subscription(db: Session, user: User, tier: str) -> dict:
     subscription dict (has ``short_url`` for hosted checkout)."""
     if tier not in PAID_TIERS:
         raise RuntimeError("Unknown plan.")
-    plan = _plan_id(tier)
+    plan = _plan_id(db, tier)
     if not plan:
-        raise RuntimeError(f"No Razorpay plan configured for {tier} (set RAZORPAY_PLAN_{tier.upper()}).")
-    client = _client()
+        raise RuntimeError(f"No Razorpay plan configured for {tier} (set it in Settings → Integrations).")
+    client = _client(db)
     sub = client.subscription.create(
         {
             "plan_id": plan,
@@ -88,14 +90,13 @@ def _set_tier(db: Session, sub_row: Subscription, active: bool) -> None:
 
 def handle_webhook(db: Session, body: bytes, signature: str | None) -> bool:
     """Verify the Razorpay signature and apply the event. Returns True if handled."""
-    if not settings.razorpay_webhook_secret or not signature:
+    webhook_secret = settings_store.get("razorpay_webhook_secret", db)
+    if not webhook_secret or not signature:
         return False
     try:
         import razorpay
 
-        razorpay.Utility().verify_webhook_signature(
-            body.decode("utf-8"), signature, settings.razorpay_webhook_secret
-        )
+        razorpay.Utility().verify_webhook_signature(body.decode("utf-8"), signature, webhook_secret)
     except Exception:  # noqa: BLE001
         logger.warning("Razorpay webhook signature verification failed")
         return False
@@ -169,7 +170,7 @@ def cancel_active(db: Session, user: User) -> bool:
     if sub is None:
         return False
     try:
-        _client().subscription.cancel(sub.razorpay_subscription_id, {"cancel_at_cycle_end": 0})
+        _client(db).subscription.cancel(sub.razorpay_subscription_id, {"cancel_at_cycle_end": 0})
     except Exception:  # noqa: BLE001
         logger.warning("Razorpay cancel failed for %s", sub.razorpay_subscription_id, exc_info=True)
     _set_tier(db, sub, active=False)

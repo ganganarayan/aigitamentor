@@ -22,7 +22,7 @@ from app.auth.security import COOKIE_NAME, create_session_token
 from app.config import settings
 from app.db import get_db
 from app.models import User
-from app.services import meta
+from app.services import meta, settings_store
 from app.templating import templates
 
 router = APIRouter(tags=["auth"])
@@ -63,7 +63,7 @@ def login_page(request: Request, next: str = "/app", error: str | None = None):
             "request": request,
             "next": _safe_next(next),
             "error": error,
-            "google_enabled": settings.google_oauth_enabled,
+            "google_enabled": settings_store.google_oauth_enabled(),
         },
     )
 
@@ -84,7 +84,7 @@ def login_submit(
                 "request": request,
                 "next": _safe_next(next),
                 "error": "Invalid email or password.",
-                "google_enabled": settings.google_oauth_enabled,
+                "google_enabled": settings_store.google_oauth_enabled(),
             },
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
@@ -101,7 +101,7 @@ def signup_page(request: Request, next: str = "/app", error: str | None = None):
             "request": request,
             "next": _safe_next(next),
             "error": error,
-            "google_enabled": settings.google_oauth_enabled,
+            "google_enabled": settings_store.google_oauth_enabled(),
         },
     )
 
@@ -134,7 +134,7 @@ def signup_submit(
                 "request": request,
                 "next": _safe_next(next),
                 "error": error,
-                "google_enabled": settings.google_oauth_enabled,
+                "google_enabled": settings_store.google_oauth_enabled(),
             },
             status_code=status.HTTP_400_BAD_REQUEST,
         )
@@ -192,12 +192,12 @@ def _state_serializer() -> URLSafeSerializer:
 
 @router.get("/auth/google/login")
 def google_login(next: str = "/app"):
-    if not settings.google_oauth_enabled:
+    if not settings_store.google_oauth_enabled():
         return RedirectResponse("/login?error=Google+sign-in+is+not+configured+yet.")
     state = secrets.token_urlsafe(24)
     params = {
-        "client_id": settings.google_oauth_client_id,
-        "redirect_uri": settings.google_oauth_redirect_uri,
+        "client_id": settings_store.get("google_oauth_client_id"),
+        "redirect_uri": settings_store.get("google_oauth_redirect_uri"),
         "response_type": "code",
         "scope": "openid email profile",
         "state": state,
@@ -222,7 +222,7 @@ async def google_callback(
     state: str | None = None,
     db: Session = Depends(get_db),
 ):
-    if not settings.google_oauth_enabled:
+    if not settings_store.google_oauth_enabled():
         return RedirectResponse("/login?error=Google+sign-in+is+not+configured+yet.")
     cookie = request.cookies.get(_OAUTH_STATE_COOKIE)
     if not code or not state or not cookie:
@@ -239,9 +239,9 @@ async def google_callback(
             _GOOGLE_TOKEN_URL,
             data={
                 "code": code,
-                "client_id": settings.google_oauth_client_id,
-                "client_secret": settings.google_oauth_client_secret,
-                "redirect_uri": settings.google_oauth_redirect_uri,
+                "client_id": settings_store.get("google_oauth_client_id"),
+                "client_secret": settings_store.get("google_oauth_client_secret"),
+                "redirect_uri": settings_store.get("google_oauth_redirect_uri"),
                 "grant_type": "authorization_code",
             },
         )

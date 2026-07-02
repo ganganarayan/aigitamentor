@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models import Setting
+from app.services import settings_cache
 
 logger = logging.getLogger("app.site_settings")
 
@@ -22,13 +23,7 @@ _ESCALATION_KEY = "escalation"
 
 
 def _get(db: Session, key: str) -> dict:
-    try:
-        row = db.execute(select(Setting).where(Setting.key == key)).scalars().first()
-        if row and isinstance(row.value, dict):
-            return row.value
-    except Exception:  # noqa: BLE001
-        logger.warning("site_settings read failed for %s", key, exc_info=True)
-    return {}
+    return settings_cache.get(key, db)  # cached; read-only for callers here
 
 
 def _put(db: Session, key: str, value: dict) -> None:
@@ -38,6 +33,7 @@ def _put(db: Session, key: str, value: dict) -> None:
     else:
         row.value = value
     db.commit()
+    settings_cache.invalidate(key)
 
 
 def _int(val, default: int) -> int:

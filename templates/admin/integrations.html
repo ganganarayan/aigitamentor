@@ -1,0 +1,87 @@
+{% extends "admin/base.html" %}
+{% block title %}Settings · Integrations · Knowledge Studio{% endblock %}
+{% block styles %}
+  .panel { background:#fff; border:1px solid rgba(201,150,59,.25); border-radius:12px; padding:18px; margin-bottom:18px; }
+  .panel h3 { margin:0 0 4px; }
+  .field { margin-bottom:14px; }
+  .field > label { display:block; font-size:13px; margin:0 0 5px; }
+  .src { font-size:12px; padding:2px 8px; border-radius:999px; }
+  .src.database { background:#e3f5e6; color:#1c6b2e; }
+  .src.environment { background:#eaf0fb; color:#274b8a; }
+  .src.none { background:#fdecea; color:#8a1c12; }
+  .fhead { display:flex; align-items:center; gap:8px; margin-bottom:5px; font-size:13px; }
+  .keywrap { position:relative; }
+  .keywrap input { width:100%; padding-right:44px; }
+  .eye { position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; font-size:16px; opacity:.6; }
+  .clearbox { font-size:12px; opacity:.8; margin-top:6px; display:inline-flex; align-items:center; gap:6px; }
+  .clearbox input { width:auto; }
+  .muted { opacity:.7; font-size:13px; }
+  .hint { font-size:12px; opacity:.6; margin:4px 0 0; }
+  .err { background:#fdecea; color:#8a1c12; border-radius:10px; padding:11px 14px; margin-bottom:16px; font-size:14px; }
+  .note { background:#fff8ea; border:1px solid rgba(201,150,59,.35); border-radius:10px; padding:12px 15px; font-size:13px; margin-bottom:18px; }
+  table.audit td, table.audit th { font-size:13px; }
+{% endblock %}
+{% block body %}
+<h1>Settings — Integrations</h1>
+<p class="muted" style="margin-top:-6px">Change these without a redeploy. Secrets are encrypted at rest and never shown back — paste to replace, leave blank to keep, tick <em>clear</em> to remove (falls back to the env var). A DB value always wins over the Railway env var.</p>
+{% if error %}<div class="err">{{ error }}</div>{% endif %}
+
+<div class="note">
+  {% if dedicated_key %}🔐 Secrets are encrypted with a <strong>dedicated</strong> SETTINGS_ENCRYPTION_KEY.
+  {% else %}⚠️ Secrets are currently encrypted with a key derived from <code>JWT_SECRET</code>. Set a dedicated <code>SETTINGS_ENCRYPTION_KEY</code> in Railway (and keep a copy somewhere safe) so rotating JWT_SECRET never orphans stored secrets.{% endif %}
+</div>
+
+<form method="post" action="/admin/integrations">
+  {% for sec in sections %}
+  <div class="panel">
+    <h3>{{ sec.section }}</h3>
+    {% for f in sec.fields %}
+    <div class="field">
+      {% if f.secret %}
+        <div class="fhead">
+          <label style="margin:0">{{ f.label }}</label>
+          <span class="src {{ f.source }}">{{ f.source }}</span>
+          {% if f.source == 'database' %}<span class="muted">•••• set (encrypted)</span>
+          {% elif f.source == 'environment' %}<span class="muted">using env var</span>
+          {% else %}<span class="muted">not set</span>{% endif %}
+        </div>
+        <div class="keywrap">
+          <input type="password" id="k_{{ f.name }}" name="{{ f.name }}" autocomplete="new-password" placeholder="Paste new {{ f.label|lower }} to set/replace" />
+          <button type="button" class="eye" onclick="togEye('k_{{ f.name }}',this)" aria-label="show/hide">👁</button>
+        </div>
+        {% if f.source == 'database' %}<label class="clearbox"><input type="checkbox" name="clear_{{ f.name }}" value="1" /> clear stored value</label>{% endif %}
+      {% else %}
+        <label>{{ f.label }} <span class="src {{ f.source }}">{{ f.source }}</span></label>
+        <input type="text" name="{{ f.name }}" value="{{ f.value }}" placeholder="{{ f.placeholder }}" />
+      {% endif %}
+      {% if f.help %}<p class="hint">{{ f.help }}</p>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+  <button class="btn" type="submit">Save integrations</button>
+</form>
+
+{% if audit %}
+<div class="panel" style="margin-top:22px">
+  <h3>Recent changes <span class="muted">(what & who, never the value)</span></h3>
+  <table class="audit">
+    <thead><tr><th style="width:180px">When (UTC)</th><th>Setting</th><th style="width:90px">Action</th><th>By</th></tr></thead>
+    <tbody>
+      {% for e in audit %}
+      <tr>
+        <td>{{ e.created_at.strftime('%Y-%m-%d %H:%M') if e.created_at else '—' }}</td>
+        <td><code style="font-size:12px">{{ e.properties.setting if e.properties else '' }}</code></td>
+        <td>{{ e.properties.action if e.properties else '' }}</td>
+        <td class="muted">{{ e.properties.actor if e.properties else '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<script>
+  function togEye(id, btn){ const el=document.getElementById(id); if(!el) return; el.type = el.type==='password'?'text':'password'; btn.style.opacity = el.type==='text'?1:0.6; }
+</script>
+{% endblock %}

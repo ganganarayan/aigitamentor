@@ -9,30 +9,26 @@ from __future__ import annotations
 
 import os
 
-from app.config import settings
+from app.services import settings_store
 
 _SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
 
 def is_configured() -> bool:
-    return bool(
-        settings.google_drive_client_id
-        and settings.google_drive_client_secret
-        and settings.google_drive_refresh_token
-    )
+    return settings_store.google_drive_configured()
 
 
 def _service():
     if not is_configured():
-        raise RuntimeError("GOOGLE_DRIVE_* not configured")
+        raise RuntimeError("Google Drive is not configured (set it in Settings → Integrations).")
     from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
 
     creds = Credentials(
         token=None,
-        refresh_token=settings.google_drive_refresh_token,
-        client_id=settings.google_drive_client_id,
-        client_secret=settings.google_drive_client_secret,
+        refresh_token=settings_store.get("google_drive_refresh_token"),
+        client_id=settings_store.get("google_drive_client_id"),
+        client_secret=settings_store.get("google_drive_client_secret"),
         token_uri="https://oauth2.googleapis.com/token",
         scopes=_SCOPES,
     )
@@ -48,8 +44,9 @@ def upload_file(path: str, filename: str) -> tuple[str, str | None]:
 
     service = _service()
     metadata: dict = {"name": filename}
-    if settings.drive_recordings_folder_id:
-        metadata["parents"] = [settings.drive_recordings_folder_id]
+    folder_id = settings_store.get("drive_recordings_folder_id")
+    if folder_id:
+        metadata["parents"] = [folder_id]
     media = MediaFileUpload(path, resumable=False)
     created = (
         service.files()

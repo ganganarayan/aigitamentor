@@ -39,6 +39,12 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 async def lifespan(app: FastAPI):
     logger.info("Starting %s v%s (%s)", settings.app_name, __version__, settings.environment)
     startup_db_check()  # schema is applied by `alembic upgrade head` in the start command
+    try:  # warm the settings cache so the first requests don't pay a DB read
+        from app.services import settings_cache
+
+        settings_cache.preload(["ai_runtime", "app_config", "escalation"])
+    except Exception:  # noqa: BLE001
+        logger.warning("Settings cache preload skipped", exc_info=True)
     yield
     logger.info("Shutting down %s", settings.app_name)
 

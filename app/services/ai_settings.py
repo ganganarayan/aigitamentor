@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings as env
 from app.models import Setting
-from app.services import secretbox
+from app.services import secretbox, settings_cache
 
 logger = logging.getLogger("app.ai_settings")
 
@@ -88,8 +88,8 @@ def _env_key(provider: str) -> str | None:
 
 
 def load_raw(db: Session) -> dict:
-    row = db.execute(select(Setting).where(Setting.key == SETTINGS_KEY)).scalar_one_or_none()
-    return dict(row.value) if row and row.value else {}
+    # Cached read (copy — callers mutate). The per-chat-turn key lookup lands here.
+    return dict(settings_cache.get(SETTINGS_KEY, db))
 
 
 def save_raw(db: Session, data: dict) -> None:
@@ -99,6 +99,7 @@ def save_raw(db: Session, data: dict) -> None:
     else:
         row.value = data
     db.commit()
+    settings_cache.invalidate(SETTINGS_KEY)
 
 
 def resolved(db: Session) -> AiRuntime:
