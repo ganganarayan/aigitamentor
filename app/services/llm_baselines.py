@@ -22,7 +22,7 @@ logger = logging.getLogger("app.baselines")
 # Commodity-floor models. Exact ids are not load-bearing — the panel just needs
 # to reflect the current frontier. Adjust freely as models evolve.
 _OPENAI_MODEL = "gpt-4o-mini"
-_GEMINI_MODEL = "gemini-1.5-flash"
+_GEMINI_MODEL = "gemini-2.5-flash"
 _PERPLEXITY_MODEL = "sonar"
 _MAX_TOKENS = 700
 _TIMEOUT = 40

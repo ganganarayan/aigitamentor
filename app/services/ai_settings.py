@@ -24,6 +24,7 @@ import hashlib
 import logging
 from dataclasses import dataclass
 
+import httpx
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -148,10 +149,49 @@ def view(db: Session) -> dict:
     }
 
 
-def list_provider_models(db: Session, provider: str) -> list[str]:
-    """Live list of model ids available for a provider, using the stored key.
+# Public, curated fallbacks. Gemini is pulled live when a key is present; these
+# are the current public ids used when the key isn't set. Perplexity has no
+# list-models endpoint, so its (fixed, public) Sonar ids are curated here.
+# Refreshed 2026-07-02 from ai.google.dev and docs.perplexity.ai.
+_GEMINI_FALLBACK = [
+    "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite",
+    "gemini-2.0-flash", "gemini-2.0-flash-lite",
+]
+_PERPLEXITY_MODELS = ["sonar", "sonar-pro", "sonar-reasoning-pro", "sonar-deep-research"]
 
-    Empty on any error / missing key — the UI falls back to free text."""
+
+def _gemini_models(key: str | None) -> list[str]:
+    """Live Gemini models (generateContent-capable) via the public REST endpoint;
+    curated public fallback when there's no key or the call fails."""
+    if key:
+        try:
+            with httpx.Client(timeout=15) as client:
+                r = client.get(
+                    "https://generativelanguage.googleapis.com/v1beta/models",
+                    params={"key": key, "pageSize": 1000},
+                )
+                r.raise_for_status()
+                data = r.json()
+            ids = sorted({
+                (m.get("name") or "").split("/")[-1]
+                for m in data.get("models", [])
+                if "generateContent" in (m.get("supportedGenerationMethods") or [])
+                and (m.get("name") or "").split("/")[-1]
+            })
+            if ids:
+                return ids
+        except Exception:  # noqa: BLE001
+            logger.warning("Gemini model list failed", exc_info=True)
+    return list(_GEMINI_FALLBACK)
+
+
+def list_provider_models(db: Session, provider: str) -> list[str]:
+    """List model ids for a provider to populate the pickers.
+
+    anthropic/openai: live from the provider (needs the key). gemini: live via
+    its public REST endpoint, else a curated public fallback. perplexity: the
+    fixed, public Sonar set (no list endpoint). Empty only for anthropic/openai
+    without a key."""
     cfg = resolved(db)
     try:
         if provider == "anthropic":
@@ -171,6 +211,10 @@ def list_provider_models(db: Session, provider: str) -> list[str]:
             client = openai.OpenAI(api_key=key)
             ids = [m.id for m in client.models.list().data]
             return sorted(i for i in ids if i.startswith(("gpt", "o1", "o3", "chatgpt")))
+        if provider == "gemini":
+            return _gemini_models(cfg.key_for("gemini"))
+        if provider == "perplexity":
+            return list(_PERPLEXITY_MODELS)
     except Exception:  # noqa: BLE001
         logger.warning("Model list failed for %s", provider, exc_info=True)
     return []
