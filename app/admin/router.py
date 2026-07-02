@@ -589,8 +589,13 @@ def settings_page(
     user: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    ai = ai_settings.view(db)
+    # Live model list for the current provider so the dropdowns render populated
+    # (only models the provider actually offers). Empty if the key isn't set yet.
+    models = ai_settings.list_provider_models(db, ai["provider"])
     return templates.TemplateResponse(
-        "admin/settings.html", {"request": request, "user": user, "ai": ai_settings.view(db), "error": error}
+        "admin/settings.html",
+        {"request": request, "user": user, "ai": ai, "models": models, "error": error},
     )
 
 

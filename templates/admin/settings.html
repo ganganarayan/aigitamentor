@@ -36,15 +36,28 @@
 <p style="opacity:.7;font-size:14px;margin-top:-6px">Runtime-selectable — no redeploy. Blank falls back to the environment variable. Keys are encrypted in the database and never shown back.</p>
 {% if error %}<div class="err">{{ error }}</div>{% endif %}
 
+{% macro modelselect(name, current, models) -%}
+<select name="{{ name }}" class="modelsel" data-current="{{ current }}">
+  {%- if current and current not in models %}
+  <option value="{{ current }}" selected>{{ current }} — current</option>
+  {%- endif %}
+  {%- for m in models %}
+  <option value="{{ m }}"{% if m == current %} selected{% endif %}>{{ m }}</option>
+  {%- endfor %}
+  {%- if not models and not current %}
+  <option value="" disabled selected>— set the provider key &amp; Save, then reopen —</option>
+  {%- endif %}
+</select>
+{%- endmacro %}
+
 <form method="post" action="/admin/settings">
   <div class="provider-row">
     <label style="margin:0"><strong>Provider</strong></label>
     <select id="provider" name="provider" onchange="loadModels()">
       {% for p in ai.key_providers %}<option value="{{ p }}" {% if p == ai.provider %}selected{% endif %}>{{ p }}</option>{% endfor %}
     </select>
-    <span id="modelHint">Pick a model per tier from this provider's live list (or type a custom id).</span>
+    <span id="modelHint">{% if models %}Choose from {{ models|length }} {{ ai.provider }} models.{% else %}No models available — set the {{ ai.provider }} key and Save, then reopen this page.{% endif %}</span>
   </div>
-  <datalist id="modellist"></datalist>
 
   <div class="grid2">
     <div class="panel">
@@ -52,7 +65,7 @@
       <p class="sub">Model for the recorder / LLM baseline panel (admin-side).</p>
       <div class="field">
         <label>Admin &amp; recorder model</label>
-        <input list="modellist" name="model_admin" value="{{ ai.model_admin }}" placeholder="claude-sonnet-5" />
+        {{ modelselect('model_admin', ai.model_admin, models) }}
       </div>
     </div>
 
@@ -61,15 +74,15 @@
       <p class="sub">Which model answers each tier (System B).</p>
       <div class="field">
         <label>Seeker <small>(free)</small></label>
-        <input list="modellist" name="model_seeker" value="{{ ai.model_seeker }}" placeholder="claude-haiku-4-5" />
+        {{ modelselect('model_seeker', ai.model_seeker, models) }}
       </div>
       <div class="field">
         <label>Abhyāsi <small>(₹499)</small></label>
-        <input list="modellist" name="model_abhyasi" value="{{ ai.model_abhyasi }}" placeholder="claude-sonnet-5" />
+        {{ modelselect('model_abhyasi', ai.model_abhyasi, models) }}
       </div>
       <div class="field">
         <label>Sādhaka <small>(₹1,459)</small></label>
-        <input list="modellist" name="model_sadhaka" value="{{ ai.model_sadhaka }}" placeholder="claude-sonnet-5" />
+        {{ modelselect('model_sadhaka', ai.model_sadhaka, models) }}
       </div>
     </div>
   </div>
@@ -122,18 +135,29 @@
 
 <script>
   function toggleKey(id, btn){ const el=document.getElementById(id); if(!el) return; el.type = el.type==='password'?'text':'password'; btn.style.opacity = el.type==='text'?1:0.6; }
+  function esc(s){ return (''+s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  // Rebuild every model dropdown from the selected provider's LIVE list. Only
+  // available models are offered; the current value is kept selected (marked if
+  // it isn't in the live list) so a setting is never silently lost.
   async function loadModels(){
     const prov=document.getElementById('provider').value;
-    const dl=document.getElementById('modellist');
     const hint=document.getElementById('modelHint');
     hint.textContent='Loading available models…';
+    let models=[];
     try{
       const r=await fetch('/admin/models?provider='+encodeURIComponent(prov));
       const data=await r.json();
-      dl.innerHTML=(data.models||[]).map(m=>'<option value="'+m+'"></option>').join('');
-      hint.textContent = (data.models&&data.models.length) ? ('Choose from '+data.models.length+' '+prov+' models (or type a custom id).') : ('No models listed — check the '+prov+' key, or type a custom id.');
-    }catch(e){ hint.textContent='Could not load models — type a custom id.'; }
+      models=data.models||[];
+    }catch(e){}
+    document.querySelectorAll('.modelsel').forEach(sel=>{
+      const cur = sel.value || sel.getAttribute('data-current') || '';
+      let html='';
+      if(cur && !models.includes(cur)) html+='<option value="'+esc(cur)+'" selected>'+esc(cur)+' — current</option>';
+      html+=models.map(m=>'<option value="'+esc(m)+'"'+(m===cur?' selected':'')+'>'+esc(m)+'</option>').join('');
+      if(!models.length && !cur) html='<option value="" disabled selected>— set the provider key &amp; Save, then reopen —</option>';
+      sel.innerHTML=html;
+    });
+    hint.textContent = models.length ? ('Choose from '+models.length+' '+prov+' models.') : ('No models available — set the '+prov+' key and Save, then reopen this page.');
   }
-  loadModels();
 </script>
 {% endblock %}
